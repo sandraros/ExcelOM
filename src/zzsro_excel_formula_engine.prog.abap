@@ -577,6 +577,8 @@ CLASS lcl_parser IMPLEMENTATION.
           ELSE.
             " The word is a cell reference, name of named range, constant (TRUE, FALSE)
             " TODO
+            current_token_index = current_token_index + 1.
+
           ENDIF.
         WHEN '"'.
           " Remove double quotes e.g. "say ""hello""" -> say "hello"
@@ -679,6 +681,8 @@ CLASS lcl_parser IMPLEMENTATION.
               work_line->operator_expression = lcl_plus=>create(
                                                    left_operand  = buffer_expression
                                                    right_operand = work_line->succeding_operand-o_expression ).
+            WHEN OTHERS.
+              raise exception type lcx_parser EXPORTING text = |Invalid operator "{ work_line->operator }"|.
           ENDCASE.
           buffer_expression = work_line->operator_expression.
         ENDLOOP.
@@ -722,74 +726,55 @@ CLASS lcl_excelom_tools DEFINITION FINAL.
 ENDCLASS.
 
 
-CLASS lcl_excelom_tools IMPLEMENTATION.
-  METHOD type.
-    DESCRIBE FIELD any_data_object TYPE result.
-  ENDMETHOD.
-ENDCLASS.
+CLASS lcl_excelom_formula2 DEFINITION FINAL
+  CREATE PRIVATE.
 
-
-CLASS lcl_excelom_formula2 DEFINITION.
   PUBLIC SECTION.
-    CLASS-METHODS create RETURNING value(result) TYPE REF TO lcl_excelom_formula2.
-    METHODS set importing value type string.
+    METHODS calculate.
+
+    CLASS-METHODS create IMPORTING !range        TYPE REF TO lcl_excelom_range
+                         RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
+
+    METHODS set IMPORTING !value TYPE string.
+
+  PRIVATE SECTION.
+    DATA range TYPE REF TO lcl_excelom_range.
+    DATA _expression TYPE REF TO lif_expression.
 ENDCLASS.
 
 
-CLASS lcl_excelom_formula2 IMPLEMENTATION.
-  METHOD create.
-    result = NEW lcl_excelom_formula2( ).
-  ENDMETHOD.
-  METHOD set.
-
-  ENDMETHOD.
-ENDCLASS.
-
-
-CLASS lcl_excelom_range_value DEFINITION.
+CLASS lcl_excelom_range DEFINITION
+    FINAL CREATE PRIVATE FRIENDS lcl_excelom_range_value.
   PUBLIC SECTION.
-    CLASS-METHODS create
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range_value.
+    interfaces lif_expression.
 
-    METHODS set_double importing value type f.
-    METHODS set_string importing value type string.
-ENDCLASS.
+    METHODS calculate.
 
-
-CLASS lcl_excelom_range_value IMPLEMENTATION.
-  METHOD create.
-    result = NEW lcl_excelom_range_value( ).
-  ENDMETHOD.
-  METHOD set_double.
-
-  ENDMETHOD.
-
-  METHOD set_string.
-
-  ENDMETHOD.
-
-ENDCLASS.
-
-
-CLASS lcl_excelom_range DEFINITION.
-  PUBLIC SECTION.
-    "!
+    "! Called by the Worksheet.Range property.
     "! @parameter cell1 | Required    Variant A String that is a range reference when one argument is used. Either a String that is a range reference or a Range object when two arguments are used.
     "! @parameter cell2 | Optional    Variant Either a String that is a range reference or a Range object. Cell2 defines another extremity of the range returned by the property.
     "! @parameter result | .
     CLASS-METHODS create
-      IMPORTING cell1         TYPE any
-                cell2         TYPE any OPTIONAL
+      IMPORTING cell1         TYPE REF TO lcl_excelom_range
+                cell2         TYPE REF TO lcl_excelom_range OPTIONAL
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
+
+    CLASS-METHODS create_from_address
+      IMPORTING address     TYPE clike
+                relative_to TYPE REF TO lcl_excelom_worksheet
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
 
     METHODS value    RETURNING VALUE(result) TYPE REF TO lcl_excelom_range_value.
+
     METHODS formula2 RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
 
   PRIVATE SECTION.
     TYPES:
       BEGIN OF ty_address_one_cell,
         column TYPE i,
+        column_fixed TYPE abap_bool,
         row    TYPE i,
+        row_fixed TYPE abap_bool,
       END OF ty_address_one_cell.
     TYPES:
       BEGIN OF ty_address,
@@ -803,68 +788,80 @@ CLASS lcl_excelom_range DEFINITION.
 
     DATA _formula2 TYPE REF TO lcl_excelom_formula2.
     DATA _address  TYPE ty_address.
+    data _parent type ref to lcl_excelom_worksheet.
 ENDCLASS.
 
 
-CLASS lcl_excelom_range IMPLEMENTATION.
-  METHOD create.
-    result = NEW lcl_excelom_range( ).
-      if cell2 is initial.
-      result->_address = decode_range_address( cell1 ).
-    else.
-  endif.
-  ENDMETHOD.
+CLASS lcl_excelom_range_value DEFINITION.
+  PUBLIC SECTION.
+    CLASS-METHODS create
+      IMPORTING !range        TYPE REF TO lcl_excelom_range
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range_value.
 
-  METHOD decode_range_address.
+    METHODS set_double importing value type f.
 
-  ENDMETHOD.
+    METHODS set_string importing value type string.
 
-  METHOD formula2.
-    IF _formula2 IS NOT BOUND.
-      _formula2 = lcl_excelom_formula2=>create( ).
-    ELSE.
-      result = _formula2.
-    ENDIF.
-  ENDMETHOD.
+  PRIVATE SECTION.
+    DATA range TYPE REF TO lcl_excelom_range.
 
-  METHOD value.
-  ENDMETHOD.
-
+    METHODS set IMPORTING !value TYPE ANY
+                          !type  TYPE abap_typekind.
 ENDCLASS.
 
 
-CLASS lcl_excelom_worksheet DEFINITION.
+CLASS lcl_excelom_worksheet DEFINITION FINAL
+  CREATE PRIVATE
+  FRIENDS lcl_excelom_range_value.
+
   PUBLIC SECTION.
     TYPES ty_name TYPE string.
 
+    "! Worksheet.Calculate method (Excel).
+"! Calculates all open workbooks, a specific worksheet in a workbook, or a specified range of cells on a worksheet, as shown in the following table.
+"! <p>expression.Calculate</p>
+"! expression A variable that represents a Worksheet object.
+"! https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.calculate(method)
+    METHODS calculate.
+
     CLASS-METHODS create RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheet.
 
-    "!
+    "! Worksheet.Range property. Returns a Range object that represents a cell or a range of cells.
+    "! <p>expression.Range (Cell1, Cell2)</p>
+    "! expression A variable that represents a Worksheet object.
     "! @parameter cell1 | Required    Variant A String that is a range reference when one argument is used. Either a String that is a range reference or a Range object when two arguments are used.
     "! @parameter cell2 | Optional    Variant Either a String that is a range reference or a Range object. Cell2 defines another extremity of the range returned by the property.
     "! @parameter result | .
-    METHODS range
-      IMPORTING cell1         TYPE any
-                cell2         TYPE any optional
+    METHODS range_from_address
+      IMPORTING cell1         TYPE string
+                cell2         TYPE string OPTIONAL
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
-    METHODS calculate.
+
+    "! Worksheet.Range property. Returns a Range object that represents a cell or a range of cells.
+    "! <p>expression.Range (Cell1, Cell2)</p>
+    "! expression A variable that represents a Worksheet object.
+    "! @parameter cell1 | Required    Variant A String that is a range reference when one argument is used. Either a String that is a range reference or a Range object when two arguments are used.
+    "! @parameter cell2 | Optional    Variant Either a String that is a range reference or a Range object. Cell2 defines another extremity of the range returned by the property.
+    "! @parameter result | .
+    METHODS range_from_two_ranges
+      IMPORTING cell1         TYPE REF TO lcl_excelom_range
+                cell2         TYPE REF TO lcl_excelom_range
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
+
   PRIVATE SECTION.
-    DATA formulas TYPE STANDARD TABLE OF REF TO lif_expression WITH EMPTY KEY.
-ENDCLASS.
+    TYPES:
+      BEGIN OF ts_cell,
+        column TYPE i,
+        row    TYPE i,
+        type   TYPE abap_typekind,
+        double TYPE f,
+        string TYPE string,
+      END OF ts_cell.
+    TYPES tt_cell    TYPE HASHED TABLE OF ts_cell WITH UNIQUE KEY column row.
+    TYPES tt_formula TYPE STANDARD TABLE OF REF TO lif_expression WITH EMPTY KEY.
 
-
-CLASS lcl_excelom_worksheet IMPLEMENTATION.
-  METHOD create.
-    result = NEW lcl_excelom_worksheet( ).
-  ENDMETHOD.
-  METHOD range.
-    result = lcl_excelom_range=>create( cell1 = cell1 cell2 = cell2 ).
-  ENDMETHOD.
-  METHOD calculate.
-    LOOP AT formulas INTO DATA(formula).
-      formula->evaluate( ).
-    ENDLOOP.
-  ENDMETHOD.
+    DATA formulas TYPE tt_formula.
+    DATA _cells   TYPE tt_cell.
 ENDCLASS.
 
 
@@ -896,6 +893,257 @@ CLASS lcl_excelom_worksheets DEFINITION.
     TYPES ty_worksheets TYPE SORTED TABLE OF ty_worksheet WITH UNIQUE KEY name.
 
     DATA worksheets TYPE ty_worksheets.
+ENDCLASS.
+
+
+CLASS lcl_excelom_workbook DEFINITION.
+  PUBLIC SECTION.
+    TYPES ty_name TYPE string.
+
+    CLASS-METHODS create
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
+
+    METHODS worksheets RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheets.
+
+  PRIVATE SECTION.
+    DATA _worksheets TYPE REF TO lcl_excelom_worksheets.
+ENDCLASS.
+
+
+CLASS lcl_excelom_workbooks DEFINITION.
+  PUBLIC SECTION.
+    CLASS-METHODS create
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
+
+    METHODS add
+      IMPORTING !name         TYPE lcl_excelom_workbook=>ty_name
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
+
+    METHODS count
+      RETURNING VALUE(result) TYPE i.
+
+    "!
+    "! @parameter index | Required    Variant The name or index number of the object.
+    "! @parameter result | .
+    METHODS item
+      IMPORTING index         TYPE simple
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ty_workbook,
+        name   TYPE lcl_excelom_workbook=>ty_name,
+        object TYPE REF TO lcl_excelom_workbook,
+      END OF ty_workbook.
+    TYPES ty_workbooks TYPE SORTED TABLE OF ty_workbook WITH UNIQUE KEY name.
+
+    DATA workbooks TYPE ty_workbooks.
+ENDCLASS.
+
+
+CLASS lcl_excelom DEFINITION.
+  PUBLIC SECTION.
+    CLASS-METHODS create RETURNING VALUE(result) TYPE REF TO lcl_excelom.
+    METHODS workbooks RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
+    METHODS calculate.
+
+  PRIVATE SECTION.
+    DATA _workbooks TYPE REF TO lcl_excelom_workbooks.
+ENDCLASS.
+
+
+CLASS lcl_excelom_formula2 IMPLEMENTATION.
+  METHOD calculate.
+    _expression->evaluate( ).
+  ENDMETHOD.
+
+  METHOD create.
+    result = NEW lcl_excelom_formula2( ).
+    result->range = range.
+  ENDMETHOD.
+
+  METHOD set.
+    DATA(lexer) = lcl_lexer=>create( ).
+    DATA(lexer_tokens) = lexer->lexe( value ).
+    CHECK lexer_tokens IS NOT INITIAL.
+    IF lexer_tokens[ 1 ]-value = '='.
+      DELETE lexer_tokens INDEX 1.
+    ENDIF.
+    DATA(parser) = lcl_parser=>create( ).
+    _expression = parser->parse( lexer_tokens ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_range IMPLEMENTATION.
+  METHOD create.
+    if cell2 is initial.
+      result = cell1.
+    else.
+      result = NEW lcl_excelom_range( ).
+      result->_address = VALUE #( top_left     = VALUE #( column = nmin( val1 = cell1->_address-top_left-column
+                                                                         val2 = cell2->_address-top_left-column )
+                                                          row    = nmin( val1 = cell1->_address-top_left-column
+                                                                         val2 = cell2->_address-top_left-column ) )
+                                  bottom_right = VALUE #( column = nmax( val1 = cell1->_address-top_left-column
+                                                                         val2 = cell2->_address-top_left-column )
+                                                          row    = nmax( val1 = cell1->_address-top_left-column
+                                                                         val2 = cell2->_address-top_left-column ) ) ).
+    endif.
+  ENDMETHOD.
+
+  METHOD create_from_address.
+    result = NEW lcl_excelom_range( ).
+    result->_parent = relative_to.
+    result->_address = decode_range_address( address ).
+  ENDMETHOD.
+
+  METHOD decode_range_address.
+    " A1 (relative column and row)
+    " $A1 (absolute column, relative column)
+    " A$1
+    " $A$1
+    " A1:A2
+    " $A$A
+    " A:A
+    " 1:1
+    " Sheet1!A1
+    " 'Sheet 1'!A1
+    " '[C:\workbook.xlsx]'!NAME' (workbook absolute path / name global scope)
+    " '[workbook.xlsx]Sheet 1'!$A$1' (workbook relative path)
+    " [1]!NAME (XLSX internal notation for workbooks)
+    " [1]Sheet1!$A$3
+    if address = 'A1'.
+      result = VALUE #( top_left     = VALUE #( column       = 1
+                                                column_fixed = abap_false
+                                                row          = 1
+                                                row_fixed    = abap_false )
+                        bottom_right = VALUE #( column       = 1
+                                                column_fixed = abap_false
+                                                row          = 1
+                                                row_fixed    = abap_false      ) ).
+    elseif address = 'A2'.
+      result = VALUE #( top_left     = VALUE #( column       = 1
+                                                column_fixed = abap_false
+                                                row          = 2
+                                                row_fixed    = abap_false )
+                        bottom_right = VALUE #( column       = 1
+                                                column_fixed = abap_false
+                                                row          = 2
+                                                row_fixed    = abap_false      ) ).
+    elseif address = 'B$1'.
+      result = VALUE #( top_left     = VALUE #( column       = 2
+                                                column_fixed = abap_false
+                                                row          = 1
+                                                row_fixed    = abap_false )
+                        bottom_right = VALUE #( column       = 1
+                                                column_fixed = abap_false
+                                                row          = 1
+                                                row_fixed    = abap_false      ) ).
+    endif.
+  ENDMETHOD.
+
+  METHOD calculate.
+    formula2( )->calculate( ).
+  ENDMETHOD.
+
+  METHOD formula2.
+    IF _formula2 IS NOT BOUND.
+      _formula2 = lcl_excelom_formula2=>create( me ).
+    ENDIF.
+    result = _formula2.
+  ENDMETHOD.
+
+  METHOD value.
+    result = lcl_excelom_range_value=>create( me ).
+  ENDMETHOD.
+
+  METHOD lif_expression~evaluate.
+
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_range_value IMPLEMENTATION.
+  METHOD create.
+    result = NEW lcl_excelom_range_value( ).
+    result->range = range.
+  ENDMETHOD.
+
+  METHOD set.
+    DATA(row) = range->_address-top_left-row.
+    WHILE row <= range->_address-bottom_right-row.
+      DATA(column) = range->_address-top_left-column.
+      WHILE column <= range->_address-bottom_right-column.
+        DATA(cell) = REF #( range->_parent->_cells[ column = column
+                                                    row    = row ] OPTIONAL ).
+        IF cell IS NOT BOUND.
+          INSERT VALUE #( column = column
+                          row    = row )
+                 INTO TABLE range->_parent->_cells
+                 REFERENCE INTO cell.
+        ENDIF.
+        cell->type = type.
+        CASE type.
+          WHEN cl_abap_typedescr=>typekind_float.
+            cell->double = value.
+          WHEN cl_abap_typedescr=>typekind_string.
+            cell->string = value.
+        ENDCASE.
+        column = column + 1.
+      ENDWHILE.
+      row = row + 1.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD set_double.
+    set( value = value
+         type  = cl_abap_typedescr=>typekind_float ).
+  ENDMETHOD.
+
+  METHOD set_string.
+    set( value = value
+         type  = cl_abap_typedescr=>typekind_string ).
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS lcl_excelom_tools IMPLEMENTATION.
+  METHOD type.
+    DESCRIBE FIELD any_data_object TYPE result.
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_worksheet IMPLEMENTATION.
+  METHOD calculate.
+    LOOP AT formulas INTO DATA(formula).
+      formula->evaluate( ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD create.
+    result = NEW lcl_excelom_worksheet( ).
+  ENDMETHOD.
+
+  METHOD range_from_address.
+    DATA(range_1) = lcl_excelom_range=>create_from_address( address     = cell1
+                                                            relative_to = me ).
+    IF cell2 IS INITIAL.
+      result = range_1.
+    ELSE.
+      DATA(range_2) = lcl_excelom_range=>create_from_address( address     = cell2
+                                                              relative_to = me ).
+      result = range_from_two_ranges( cell1 = range_1
+                                      cell2 = range_2 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD range_from_two_ranges.
+    result = lcl_excelom_range=>create( cell1 = cell1
+                                        cell2 = cell2 ).
+  ENDMETHOD.
 ENDCLASS.
 
 
@@ -932,20 +1180,6 @@ CLASS lcl_excelom_worksheets IMPLEMENTATION.
 ENDCLASS.
 
 
-CLASS lcl_excelom_workbook DEFINITION.
-  PUBLIC SECTION.
-    TYPES ty_name TYPE string.
-
-    CLASS-METHODS create
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
-
-    METHODS worksheets RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheets.
-
-  PRIVATE SECTION.
-    DATA _worksheets TYPE REF TO lcl_excelom_worksheets.
-ENDCLASS.
-
-
 CLASS lcl_excelom_workbook IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_workbook( ).
@@ -957,37 +1191,6 @@ CLASS lcl_excelom_workbook IMPLEMENTATION.
     result = _worksheets.
   ENDMETHOD.
 
-ENDCLASS.
-
-
-CLASS lcl_excelom_workbooks DEFINITION.
-  PUBLIC SECTION.
-    CLASS-METHODS create
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
-
-    METHODS add
-      IMPORTING !name         TYPE lcl_excelom_workbook=>ty_name
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
-
-    METHODS count
-      RETURNING VALUE(result) TYPE i.
-
-    "!
-    "! @parameter index | Required    Variant The name or index number of the object.
-    "! @parameter result | .
-    METHODS item
-      IMPORTING index         TYPE simple
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
-
-  PRIVATE SECTION.
-    TYPES:
-      BEGIN OF ty_workbook,
-        name   TYPE lcl_excelom_workbook=>ty_name,
-        object TYPE REF TO lcl_excelom_workbook,
-      END OF ty_workbook.
-    TYPES ty_workbooks TYPE SORTED TABLE OF ty_workbook WITH UNIQUE KEY name.
-
-    DATA workbooks TYPE ty_workbooks.
 ENDCLASS.
 
 
@@ -1020,17 +1223,6 @@ CLASS lcl_excelom_workbooks IMPLEMENTATION.
     ENDCASE.
   ENDMETHOD.
 
-ENDCLASS.
-
-
-CLASS lcl_excelom DEFINITION.
-  PUBLIC SECTION.
-    CLASS-METHODS create RETURNING VALUE(result) TYPE REF TO lcl_excelom.
-    METHODS workbooks RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
-    METHODS calculate.
-
-  PRIVATE SECTION.
-    DATA _workbooks TYPE REF TO lcl_excelom_workbooks.
 ENDCLASS.
 
 
@@ -1196,8 +1388,8 @@ CLASS ltc_parser IMPLEMENTATION.
     DATA(app) = lcl_excelom=>create( ).
     DATA(workbook) = app->workbooks( )->add( 'name' ).
     DATA(worksheet) = workbook->worksheets( )->item( 'Sheet1' ).
-    worksheet->range( 'A1' )->value( )->set_double( 10 ).
-    DATA(range) = worksheet->range( 'A2' ).
+    worksheet->range_from_address( 'A1' )->value( )->set_double( 10 ).
+    DATA(range) = worksheet->range_from_address( 'A2' ).
     range->formula2( )->set( '=A1+1' ).
     app->calculate( ).
     cl_abap_unit_assert=>assert_equals( exp = 11
