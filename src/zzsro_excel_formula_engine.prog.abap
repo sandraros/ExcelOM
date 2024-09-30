@@ -58,15 +58,14 @@ REPORT zzsro_excel_formula_engine.
 * d | e            l | o | r              d op l | e op o | #N/A
 * g | h                                   #N/A   | #N/A   | #N/A
 
-CLASS lcx_excelom_expr_parser DEFINITION DEFERRED.
-CLASS lcx_excelom_to_do DEFINITION DEFERRED.
-CLASS lcx_excelom_unexpected DEFINITION DEFERRED.
 CLASS lcl_excelom DEFINITION DEFERRED.
 CLASS lcl_excelom_error_value DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_array DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_expressions DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_function_call DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_number DEFINITION DEFERRED.
+CLASS lcl_excelom_expr_operator DEFINITION DEFERRED.
+CLASS lcl_excelom_expr_parser DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_plus DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_string DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_sub_expr DEFINITION DEFERRED.
@@ -83,7 +82,11 @@ CLASS lcl_excelom_workbook DEFINITION DEFERRED.
 CLASS lcl_excelom_workbooks DEFINITION DEFERRED.
 CLASS lcl_excelom_worksheet DEFINITION DEFERRED.
 CLASS lcl_excelom_worksheets DEFINITION DEFERRED.
+CLASS lcx_excelom_expr_parser DEFINITION DEFERRED.
+CLASS lcx_excelom_to_do DEFINITION DEFERRED.
+CLASS lcx_excelom_unexpected DEFINITION DEFERRED.
 INTERFACE lif_excelom_expr_expression DEFERRED.
+*INTERFACE lif_excelom_expr_operator DEFERRED.
 INTERFACE lif_excelom_result DEFERRED.
 
 
@@ -151,6 +154,52 @@ CLASS lcx_excelom_expr_parser IMPLEMENTATION.
 ENDCLASS.
 
 
+INTERFACE lif_excelom_expr_expression.
+  METHODS evaluate RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+ENDINTERFACE.
+
+
+*INTERFACE lif_excelom_expr_operator.
+**  TYPES:
+**    BEGIN OF ts_operand_position_offsets,
+**      start TYPE i,
+**      end   TYPE i,
+**    END OF ts_operand_position_offsets.
+*  TYPES tt_operand_position_offset TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+*  TYPES tt_EXPRESSION TYPE STANDARD TABLE OF REF TO lif_excelom_expr_expression WITH EMPTY KEY.
+*
+*  METHODS create_expression
+*    IMPORTING operands      TYPE tt_expression
+*    RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+*
+*  "! <ul>
+*  "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
+*  "! <li>2 : – (as in –1) and + (as in +1)</li>
+*  "! <li>3 : % (as in =50%)</li>
+*  "! <li>4 : ^ Exponentiation (as in 2^8)</li>
+*  "! <li>5 : * and / Multiplication and division                    </li>
+*  "! <li>6 : + and – Addition and subtraction                       </li>
+*  "! <li>7 : & Connects two strings of text (concatenation)         </li>
+*  "! <li>8 : = < > <= >= <> Comparison</li>
+*  "! </ul>
+*  "!
+*  "! @parameter result | .
+*  METHODS get_priority
+*    RETURNING VALUE(result) TYPE i.
+*
+*  "! 1 : predecessor operand only (% e.g. 10%)
+*  "! 2 : before and after operand only (+ - * / ^ & e.g. 1+1)
+*  "! 3 : successor operand only (unary + and - e.g. +5)
+*  "!
+*  "! @parameter result | .
+*  METHODS get_operand_position_offsets
+*    RETURNING VALUE(result) TYPE tt_operand_position_offset.
+*
+*  METHODS set_operands IMPORTING predecessor TYPE REF TO lif_excelom_expr_expression OPTIONAL
+*                                 successor   TYPE REF TO lif_excelom_expr_expression OPTIONAL.
+*ENDINTERFACE.
+
+
 INTERFACE lif_excelom_result.
   TYPES ty_type TYPE i.
   CONSTANTS:
@@ -193,7 +242,6 @@ CLASS lcl_excelom_result_array DEFINITION FINAL
   PRIVATE SECTION.
     DATA number_of_rows    TYPE i.
     DATA number_of_columns TYPE i.
-*    DATA range TYPE ref to lcl_excelom_range.
 ENDCLASS.
 
 
@@ -353,11 +401,6 @@ CLASS lcl_excelom_result_string DEFINITION FINAL
 ENDCLASS.
 
 
-INTERFACE lif_excelom_expr_expression.
-  METHODS evaluate RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
-ENDINTERFACE.
-
-
 CLASS lcl_excelom_expr_array DEFINITION FINAL
   CREATE PRIVATE.
 
@@ -413,20 +456,59 @@ CLASS lcl_excelom_expr_lexer DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
+    types TY_token_type type string.
+
     TYPES:
       BEGIN OF ts_token,
         value TYPE string,
-        type  TYPE c LENGTH 1,
+        type  TYPE TY_token_type,
       END OF ts_token.
     TYPES tt_token TYPE STANDARD TABLE OF ts_token WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ts_parenthesis_group,
+        from_token TYPE i,
+        to_token   TYPE i,
+        level      TYPE i,
+        last_subgroup_token type i,
+      END OF ts_parenthesis_group.
+    TYPES tt_parenthesis_group TYPE STANDARD TABLE OF ts_parenthesis_group WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ts_result_lexe,
+        tokens             TYPE tt_token,
+        parenthesis_groups TYPE tt_parenthesis_group,
+      END OF ts_result_lexe.
+
+    CONSTANTS:
+      BEGIN OF c_type,
+        comma                      TYPE ty_token_type VALUE ',',
+        comma_space                TYPE ty_token_type VALUE `, `,
+        curly_bracket_close        TYPE ty_token_type VALUE '}',
+        curly_bracket_open         TYPE ty_token_type VALUE '{',
+        function_name              TYPE ty_token_type VALUE 'F',
+        number                     TYPE ty_token_type VALUE 'N',
+        operator                   TYPE ty_token_type VALUE 'O',
+        parenthesis_close          TYPE ty_token_type VALUE ')',
+        parenthesis_open           TYPE ty_token_type VALUE '(',
+        semicolon                  TYPE ty_token_type VALUE ',',
+        square_bracket_close       TYPE ty_token_type VALUE ']',
+        square_bracket_space_close TYPE ty_token_type VALUE ' ]',
+        square_bracket_open        TYPE ty_token_type VALUE '[',
+        square_brackets_open_close TYPE ty_token_type VALUE '[]',
+        symbol_name                TYPE ty_token_type VALUE 'W',
+        table_name                 TYPE ty_token_type VALUE 'T',
+        text_literal               TYPE ty_token_type VALUE '"',
+      END OF c_type.
 
     CLASS-METHODS create
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_lexer.
 
     METHODS lexe IMPORTING !text         TYPE csequence
-                 RETURNING VALUE(result) TYPE tt_token.
+                 RETURNING VALUE(result) TYPE ts_result_lexe.
 
   PRIVATE SECTION.
+    "! Insert the parts of the text in "FIND ... IN text ..." for which there was no match.
     METHODS complete_with_non_matches
       IMPORTING i_string  TYPE string
       CHANGING  c_matches TYPE match_result_tab.
@@ -448,28 +530,131 @@ CLASS lcl_excelom_expr_number DEFINITION FINAL
 ENDCLASS.
 
 
-INTERFACE lif_excelom_expr_operator.
-  METHODS get_priority RETURNING VALUE(result) TYPE i.
+CLASS lcl_excelom_expr_operator DEFINITION FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_expr_expression.
+*    INTERFACES lif_excelom_expr_operator.
+
+    types tt_operand_position_offset TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+  TYPES tt_EXPRESSION TYPE STANDARD TABLE OF REF TO lif_excelom_expr_expression WITH EMPTY KEY.
+
+    CLASS-DATA plus TYPE REF TO lcl_excelom_expr_operator READ-ONLY.
+
+    CLASS-METHODS class_constructor.
+
+    CLASS-METHODS create
+      IMPORTING         name              TYPE string
+        operand_position_offsets TYPE tt_operand_position_offset
+priority          TYPE i
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_operator.
+
+*  TYPES tt_operand_position_offset TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+
+  METHODS create_expression
+    IMPORTING operands      TYPE tt_expression
+    RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+
+    CLASS-METHODS get
+      IMPORTING operator TYPE string
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_operator.
+
+  "! <ul>
+  "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
+  "! <li>2 : – (as in –1) and + (as in +1)</li>
+  "! <li>3 : % (as in =50%)</li>
+  "! <li>4 : ^ Exponentiation (as in 2^8)</li>
+  "! <li>5 : * and / Multiplication and division                    </li>
+  "! <li>6 : + and – Addition and subtraction                       </li>
+  "! <li>7 : & Connects two strings of text (concatenation)         </li>
+  "! <li>8 : = < > <= >= <> Comparison</li>
+  "! </ul>
+  "!
+  "! @parameter result | .
+  METHODS get_priority
+    RETURNING VALUE(result) TYPE i.
+
   "! 1 : predecessor operand only (% e.g. 10%)
   "! 2 : before and after operand only (+ - * / ^ & e.g. 1+1)
   "! 3 : successor operand only (unary + and - e.g. +5)
   "!
-  "! @parameter result | /
-  METHODS get_operand_positions RETURNING VALUE(result) TYPE i.
+  "! @parameter result | .
+  METHODS get_operand_position_offsets
+    RETURNING VALUE(result) TYPE tt_operand_position_offset.
 
-  METHODS set_operands IMPORTING predecessor TYPE REF TO lif_excelom_expr_expression OPTIONAL
-                                 successor   TYPE REF TO lif_excelom_expr_expression OPTIONAL.
+*  METHODS set_operands IMPORTING predecessor TYPE REF TO lif_excelom_expr_expression OPTIONAL
+*                                 successor   TYPE REF TO lif_excelom_expr_expression OPTIONAL.
 
-  " Priorities:
-  "  1  : (colon)  (single space) , (comma) Reference operators
-  "  2  – Negation (as in –1)
-  "  3  % Percent
-  "  4  ^ Exponentiation
-  "  5  * and / Multiplication and division
-  "  6  + and – Addition and subtraction
-  "  7  & Connects two strings of text (concatenation)
-  "  8  = < > <= >= <> Comparison
-ENDINTERFACE.
+  PRIVATE SECTION.
+
+    TYPES:
+      "! operator precedence
+      "! Get operator priorities
+      BEGIN OF ts_operator,
+        name              TYPE string,
+        "! +1 for unary operators (e.g. -1)
+        "! -1 and +1 for binary operators (e.g. 1*2)
+        "! -1 for postfix operators (e.g. 10%)
+        operand_position_offsets TYPE tt_operand_position_offset,
+*        "! To distinguish unary from binary operators + and -
+*        unary             TYPE abap_bool,
+        "! <ul>
+        "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
+        "! <li>2 : – (as in –1) and + (as in +1)</li>
+        "! <li>3 : % (as in =50%)</li>
+        "! <li>4 : ^ Exponentiation (as in 2^8)</li>
+        "! <li>5 : * and / Multiplication and division                    </li>
+        "! <li>6 : + and – Addition and subtraction                       </li>
+        "! <li>7 : & Connects two strings of text (concatenation)         </li>
+        "! <li>8 : = < > <= >= <> Comparison</li>
+        "! </ul>
+        priority          TYPE i,
+*        "! % is the only postfix operator e.g. 10% (=0.1)
+*        postfix           TYPE abap_bool,
+        desc              TYPE string,
+        handler           TYPE REF TO lcl_excelom_expr_operator,
+      END OF ts_operator.
+    TYPES tt_operator TYPE SORTED TABLE OF ts_operator WITH UNIQUE KEY name.
+
+    CLASS-DATA operators TYPE lcl_excelom_expr_operator=>tt_operator.
+
+        data name              TYPE string.
+        "! +1 for unary operators (e.g. -1)
+        "! -1 and +1 for binary operators (e.g. 1*2)
+        "! -1 for postfix operators (e.g. 10%)
+        data operand_position_offsets TYPE tt_operand_position_offset.
+        "! <ul>
+        "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
+        "! <li>2 : – (as in –1) and + (as in +1)</li>
+        "! <li>3 : % (as in =50%)</li>
+        "! <li>4 : ^ Exponentiation (as in 2^8)</li>
+        "! <li>5 : * and / Multiplication and division                    </li>
+        "! <li>6 : + and – Addition and subtraction                       </li>
+        "! <li>7 : & Connects two strings of text (concatenation)         </li>
+        "! <li>8 : = < > <= >= <> Comparison</li>
+        "! </ul>
+        data priority          TYPE i.
+ENDCLASS.
+
+
+*CLASS lcl_excelom_expr_operation DEFINITION FINAL
+*  CREATE PRIVATE.
+*
+*  PUBLIC SECTION.
+*    INTERFACES lif_excelom_expr_expression.
+**    INTERFACES lif_excelom_expr_operator.
+*
+*    CLASS-METHODS create
+*      IMPORTING operator      TYPE REF TO lcl_excelom_expr_operator
+*                operands  TYPE REF TO lif_excelom_expr_expression
+*                right_operand TYPE REF TO lif_excelom_expr_expression
+*      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_plus.
+*
+*  PRIVATE SECTION.
+*    DATA left_operand  TYPE REF TO lif_excelom_expr_expression.
+*    DATA right_operand TYPE REF TO lif_excelom_expr_expression.
+*ENDCLASS.
 
 
 CLASS lcl_excelom_expr_parser DEFINITION FINAL
@@ -477,30 +662,76 @@ CLASS lcl_excelom_expr_parser DEFINITION FINAL
 
   PUBLIC SECTION.
     CLASS-METHODS create
-      IMPORTING formula_cell  TYPE REF TO lcl_excelom_range
+*      IMPORTING formula_cell  TYPE REF TO lcl_excelom_range
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_parser.
 
-    METHODS parse IMPORTING lexer_tokens  TYPE lcl_excelom_expr_lexer=>tt_token
-                  RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression
-                  RAISING   lcx_excelom_expr_parser.
+    METHODS parse
+      IMPORTING !tokens            TYPE lcl_excelom_expr_lexer=>tt_token
+                parenthesis_groups TYPE lcl_excelom_expr_lexer=>tt_parenthesis_group
+      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr_expression
+      RAISING   lcx_excelom_expr_parser.
 
   PRIVATE SECTION.
-    DATA formula_cell        TYPE REF TO lcl_excelom_range.
+*    TYPES:
+*      BEGIN OF ts_expression_part,
+*        s_token      TYPE REF TO lcl_excelom_expr_lexer=>ts_token,
+*        o_expression TYPE REF TO lif_excelom_expr_expression,
+*      END OF ts_expression_part.
+*    TYPES tt_expression_part TYPE STANDARD TABLE OF ts_expression_part WITH EMPTY KEY.
+*    TYPES:
+*      BEGIN OF ts_parenthesis_group,
+*        from_expression_part TYPE i,
+*        to_expression_part   TYPE i,
+*        level                TYPE i,
+*      END OF ts_parenthesis_group.
+*    TYPES tt_parenthesis_group TYPE STANDARD TABLE OF ts_parenthesis_group WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ts_parsed_group,
+        from_token TYPE i,
+        to_token   TYPE i,
+        expression TYPE REF TO lif_excelom_expr_expression,
+      END OF ts_parsed_group.
+    TYPES tt_parsed_group TYPE STANDARD TABLE OF ts_parsed_group WITH EMPTY KEY.
+
+*    DATA formula_cell        TYPE REF TO lcl_excelom_range.
     DATA formula_offset      TYPE i.
     DATA current_token_index TYPE sytabix.
     DATA tokens              TYPE lcl_excelom_expr_lexer=>tt_token.
+    DATA parenthesis_groups  TYPE lcl_excelom_expr_lexer=>tt_parenthesis_group.
+    DATA parsed_groups       TYPE tt_parsed_group.
 
     METHODS get_token
       RETURNING VALUE(result) TYPE string.
 
-    METHODS parse_expression         RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+    METHODS parse_expression
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression
+      RAISING   lcx_excelom_expr_parser.
 
-    METHODS parse_function_arguments RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_expressions.
+    METHODS parse_function_arguments
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_expressions
+      RAISING   lcx_excelom_expr_parser.
 
-    METHODS parse_tokens_up_to IMPORTING stop_at_token TYPE csequence
-                               RETURNING VALUE(result) TYPE string_table.
+    METHODS parse_tokens_up_to
+      IMPORTING stop_at_token TYPE csequence
+      RETURNING VALUE(result) TYPE string_table.
 
     METHODS skip_spaces.
+
+*    METHODS get_flat_expression_parts
+*      RETURNING VALUE(e_table_expressions) TYPE tt_expression_part
+*      RAISING
+*        lcx_excelom_expr_parser.
+
+    METHODS get_expression_from_group
+      IMPORTING  from         TYPE i
+                 to           TYPE i
+                 tokens       TYPE lcl_excelom_expr_lexer=>tt_token
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+
+    METHODS create_expression_from_token
+      IMPORTING token         TYPE lcl_excelom_expr_lexer=>ts_token
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
 
 ENDCLASS.
 
@@ -510,7 +741,6 @@ CLASS lcl_excelom_expr_plus DEFINITION FINAL
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_expr_expression.
-    INTERFACES lif_excelom_expr_operator.
 
     CLASS-METHODS create
       IMPORTING left_operand  TYPE REF TO lif_excelom_expr_expression
@@ -599,10 +829,13 @@ CLASS lcl_excelom_formula2 DEFINITION FINAL
   PUBLIC SECTION.
     METHODS calculate.
 
-    CLASS-METHODS create IMPORTING !range        TYPE REF TO lcl_excelom_range
-                         RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
+    CLASS-METHODS create
+      IMPORTING !range        TYPE REF TO lcl_excelom_range
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
 
-    METHODS set IMPORTING !value TYPE string.
+    METHODS set_value
+      IMPORTING !value TYPE string
+      RAISING   lcx_excelom_expr_parser.
 
   PRIVATE SECTION.
     DATA range       TYPE REF TO lcl_excelom_range.
@@ -957,18 +1190,18 @@ CLASS LCL_excelom_expr_helper IMPLEMENTATION.
                                                                                   row_offset    = row_offset ).
         DATA(right_operand_result_one_cell) = result-right_operand->get_cell_value( column_offset = column_offset
                                                                                     row_offset    = row_offset ).
-        TRY.
-        DATA(expression) = lcl_excelom_expr_plus=>create(
-            left_operand  = lcl_excelom_expr_number=>create(
-                                number = CAST lcl_excelom_result_number( left_operand_result_one_cell )->get_number( ) )
-            right_operand = lcl_excelom_expr_number=>create(
-                number = CAST lcl_excelom_result_number( right_operand_result_one_cell )->get_number( ) ) ).
-        catch cx_sy_move_cast_error ##NO_HANDLER.
-        endtry.
+*        TRY.
+*        DATA(result) = expression2->evaluate( ).
+*            left_operand  = lcl_excelom_expr_number=>create(
+*                                number = CAST lcl_excelom_result_number( left_operand_result_one_cell )->get_number( ) )
+*            right_operand = lcl_excelom_expr_number=>create(
+*                                number = CAST lcl_excelom_result_number( right_operand_result_one_cell )->get_number( ) ) ).
+*        catch cx_sy_move_cast_error ##NO_HANDLER.
+*        endtry.
 
-        DATA(target_array_result_one_cell) = cond #( when expression is bound
-        then expression->lif_excelom_expr_expression~evaluate( )
-        ELSE lcl_excelom_result_error=>na_not_applicable ).
+        DATA(target_array_result_one_cell) = cond #( when expression2 is bound
+                                             then expression2->evaluate( )
+                                             ELSE lcl_excelom_result_error=>na_not_applicable ).
 
         target_array->lif_excelom_result~set_cell_value(
             row_offset    = row_offset
@@ -1017,19 +1250,63 @@ CLASS lcl_excelom_expr_lexer IMPLEMENTATION.
     "
     " Note: -- is not an operator, it's a chain of the unary "-" operator (there could be even 3 or more subsequent unary operators); + can also be a unary operator,
     "       hence the formula +--++-1 is a valid formula which simply means -1. https://stackoverflow.com/questions/3286197/what-does-do-in-excel-formulas
-    FIND ALL OCCURRENCES OF REGEX '(?:\(|\{|\[(?:''[\[\]]|[^\[\]])+\]|\[ ?|\)|\}| ?\]|, ?|;| |:|<>|<=|>=|<|>|=|\+|-|\*|/|\^|&|%|"(?:""|[^"])*")' IN text RESULTS DATA(matches).
+    FIND ALL OCCURRENCES OF REGEX '(?:'
+                                & '\('
+                                & '|\{'
+                                & '|\[ '             " opening bracket after table name
+                                & '|\['              " table column name, each character can be:
+                                    & '(?:''.'       "   either one single quote (escape) with next character
+                                    & '|[^\[\]]'       "   or any other character except [ and ]
+                                    & ')+'
+                                    & '\]'
+                                & '|\['              " opening bracket after table name
+                                & '|\)'
+                                & '|\}'
+                                & '| ?\]'
+                                & '|, ?'
+                                & '|;'
+                                & '|:'
+                                & '|<>'
+                                & '|<='
+                                & '|>='
+                                & '|<'
+                                & '|>'
+                                & '|='
+                                & '|\+'
+                                & '|-'
+                                & '|\*'
+                                & '|/'
+                                & '|\^'
+                                & '|&'
+                                & '|%'
+                                & '|"(?:""|[^"])*"'  " string literal
+                                & ')'
+            IN text RESULTS DATA(matches).
+
     complete_with_non_matches( EXPORTING i_string  = text
                                CHANGING  c_matches = matches ).
-    DATA(token) = VALUE ts_token( ).
+
+    DATA(token_values) = value string_table( ).
     LOOP AT matches REFERENCE INTO DATA(match).
-      DATA(token_value) = substring( val = text
-                                     off = match->offset
-                                     len = match->length ).
+      INSERT substring( val = text
+                        off = match->offset
+                        len = match->length )
+             INTO TABLE token_values.
+    ENDLOOP.
+
+    TYPES ty_ref_to_parenthesis_group TYPE REF TO ts_parenthesis_group.
+    DATA(current_parenthesis_group) = VALUE ty_ref_to_parenthesis_group( ).
+    DATA(parenthesis_group) = VALUE ts_parenthesis_group( ).
+    DATA(parenthesis_level) = 0.
+    DATA(table_specification) = abap_false.
+    DATA(token) = VALUE ts_token( ).
+    DATA(token_number) = 1.
+    LOOP AT token_values REFERENCE INTO DATA(token_value).
       " is comma a separator or a union operator?
       " https://techcommunity.microsoft.com/t5/excel/does-the-union-operator-exist/m-p/2590110
       " With argument-list functions, there is no union. Example: A1 contains 1, both =SUM(A1,A1) and =SUM((A1,A1)) return 2.
       " With no-argument-list functions, there is a union. Example: =LARGE((A1,B1),2) (=LARGE(A1,B1,2) is invalid, too many arguments)
-      CASE token_value.
+      CASE token_value->*.
         WHEN '('
           OR '[]'
           OR '['
@@ -1042,10 +1319,9 @@ CLASS lcl_excelom_expr_lexer IMPLEMENTATION.
           OR ',' " separator or union operator?
           OR `, `
           OR ';'.
-          token = VALUE #( value = condense( token_value )
-                           type  = condense( token_value ) ).
+          token = VALUE #( value = condense( token_value->* )
+                           type  = condense( token_value->* ) ).
         WHEN ` `
-*          OR ','
           OR ':' " =B1:A1:B2:B3:A1:B2:B2:B3:B2 is same as =A1:B3
           OR '<>'
           OR '<='
@@ -1060,26 +1336,82 @@ CLASS lcl_excelom_expr_lexer IMPLEMENTATION.
           OR '^'  " 10^2 = 100
           OR '&'  " "A"&"B" = "AB"
           OR '%'. " 10% = 0.1
-          token = VALUE #( value = token_value
+          token = VALUE #( value = token_value->*
                            type  = 'O' ).
         WHEN OTHERS.
-          IF substring( val = token_value
+          IF substring( val = token_value->*
                         len = 1 ) = '"'.
             " text literal
-            token = VALUE #( value = token_value
+            token = VALUE #( value = token_value->*
                              type  = '"' ).
-          ELSEIF substring( val = token_value
+          ELSEIF substring( val = token_value->*
                             len = 1 ) = '['.
             " table argument
-            token = VALUE #( value = token_value
+            token = VALUE #( value = token_value->*
                              type  = '[' ).
+          ELSEIF substring( val = token_value->*
+                            len = 1 ) CO '0123456789.-+'.
+            " number
+            token = VALUE #( value = token_value->*
+                             type  = c_type-number ).
           ELSE.
-            " function name, --, cell reference, table name, name of named range, constant (TRUE, FALSE, number)
-            token = VALUE #( value = token_value
-                             type  = 'W' ).
+            " function name, --, cell reference, table name, name of named range, constant (TRUE, FALSE)
+            TYPES ty_ref_to_string TYPE REF TO string.
+            DATA(next_token_value) = COND ty_ref_to_string( WHEN token_number < lines( token_values )
+                                                            THEN REF #( token_values[
+                                                                            token_number + 1 ] ) ).
+            DATA(token_type) = c_type-symbol_name.
+            IF next_token_value IS BOUND.
+              DATA(next_token_first_character) = substring( val = next_token_value->*
+                                                            len = 1 ).
+              CASE next_token_first_character.
+                WHEN '('.
+                  token_type = c_type-function_name.
+                WHEN '['.
+                  token_type = c_type-table_name.
+              ENDCASE.
+            ENDIF.
+            token = VALUE #( value = token_value->*
+                             type  = token_type ).
           ENDIF.
       ENDCASE.
-      APPEND token TO result.
+
+      CASE token-type.
+        WHEN '('.
+          parenthesis_level = parenthesis_level + 1.
+          INSERT VALUE #( level      = parenthesis_level
+                          from_token = token_number )
+                 INTO TABLE result-parenthesis_groups
+                 REFERENCE INTO current_parenthesis_group.
+        WHEN ','.
+          IF table_specification = abap_false.
+            INSERT VALUE #( level      = parenthesis_level + 1
+                            from_token = cond #( when current_parenthesis_group->last_subgroup_token = 0
+                                                 then current_parenthesis_group->from_token + 1
+                                                 else current_parenthesis_group->last_subgroup_token + 2 )
+                            to_token   = token_number - 1 )
+                   INTO TABLE result-parenthesis_groups.
+            current_parenthesis_group->last_subgroup_token = token_number - 1.
+          ENDIF.
+        WHEN ')'.
+          IF current_parenthesis_group->last_subgroup_token <> 0.
+            INSERT VALUE #( level      = parenthesis_level + 1
+                            from_token = current_parenthesis_group->last_subgroup_token + 2
+                            to_token   = token_number - 1 )
+                   INTO TABLE result-parenthesis_groups.
+          ENDIF.
+          current_parenthesis_group->last_subgroup_token = token_number - 1.
+          current_parenthesis_group->to_token = token_number.
+          parenthesis_level = parenthesis_level - 1.
+          current_parenthesis_group = REF #( result-parenthesis_groups[ level = parenthesis_level ] OPTIONAL ).
+        WHEN '['.
+          table_specification = abap_true.
+        WHEN ']'.
+          table_specification = abap_false.
+      ENDCASE.
+
+      INSERT token INTO TABLE result-tokens.
+      token_number = token_number + 1.
     ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
@@ -1097,81 +1429,164 @@ CLASS lcl_excelom_expr_number IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_excelom_expr_operator IMPLEMENTATION.
+
+  METHOD class_constructor.
+  TYPES tt_operator_handler TYPE STANDARD TABLE OF REF TO lcl_excelom_expr_operator WITH EMPTY KEY.
+
+    plus = create( name = '+'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 6 ).
+    operators = VALUE tt_operator( for <operator> in value tt_operator_handler( ( plus ) )
+                                   ( handler = <operator> priority = <operator>->get_priority( ) ) ).
+*        ( name = ':'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'range A1:A2 or A1:A2:A2' )
+*        ( name = ` `  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'intersection A1 A2' )
+*        ( name = ','  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'union A1,A2' )
+*        ( name = '-'  operand_position_offsets = value #( ( +1 ) )        priority = 2 desc = '-1' )
+*        ( name = '+'  operand_position_offsets = value #( ( +1 ) )        priority = 2 desc = '+1' )
+*        ( name = '%'  operand_position_offsets = value #( ( -1 ) )        priority = 3 desc = 'percent e.g. 10%' )
+*        ( name = '^'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 4 desc = 'exponent 2^8' )
+*        ( name = '*'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 5 desc = '2*2' )
+*        ( name = '/'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 5 desc = '2/2' )
+*        ( name = '+'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 6 desc = '2+2' )
+*        ( name = '-'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 6 desc = '2-2' )
+*        ( name = '&'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 7 desc = 'concatenate "A"&"B"' )
+*        ( name = '='  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1=1' )
+*        ( name = '<'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<1' )
+*        ( name = '>'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>1' )
+*        ( name = '<=' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<=1' )
+*        ( name = '>=' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>=1' )
+*        ( name = '<>' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<>1' ) ).
+  ENDMETHOD.
+
+  METHOD create.
+    result = NEW lcl_excelom_expr_operator( ).
+    result->name = name.
+    result->operand_position_offsets = operand_position_offsets.
+    result->priority = priority.
+  ENDMETHOD.
+
+  METHOD get.
+    result = operators[ name = operator ]-handler.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr_expression~evaluate.
+
+  ENDMETHOD.
+
+  METHOD create_expression.
+    case name.
+    WHEN '+'.
+      result = lcl_excelom_expr_plus=>create(
+                 left_operand  = OPERANDS[ 1 ]
+                 right_operand = OPERANDS[ 2 ] ).
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD get_operand_position_offsets.
+    result = operand_position_offsets.
+  ENDMETHOD.
+
+  METHOD get_priority.
+    result = priority.
+  ENDMETHOD.
+ENDCLASS.
+
+
+*CLASS lcl_excelom_expr_operation IMPLEMENTATION.
+*  METHOD create.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr_expression~evaluate.
+*
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr_operator~get_operand_position_offsets.
+*    result = VALUE #( start = -1
+*                      end   = +1 ).
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr_operator~get_priority.
+*
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr_operator~set_operands.
+*
+*  ENDMETHOD.
+*
+*ENDCLASS.
+
+
 CLASS lcl_excelom_expr_parser IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_parser( ).
-    result->formula_cell = formula_cell.
+*    result->formula_cell = formula_cell.
   ENDMETHOD.
 
-  METHOD get_token.
-  ENDMETHOD.
-
-  METHOD parse.
-    current_token_index = 1.
-    tokens = lexer_tokens.
-    result = parse_expression( ).
-  ENDMETHOD.
-
-  METHOD parse_expression.
-    TYPES:
-      BEGIN OF ts_expression_part,
-        s_token      TYPE REF TO lcl_excelom_expr_lexer=>ts_token,
-        o_expression TYPE REF TO lif_excelom_expr_expression,
-      END OF ts_expression_part.
-    TYPES tt_expression_part TYPE STANDARD TABLE OF ts_expression_part WITH EMPTY KEY.
-    TYPES to_expression      TYPE REF TO lif_excelom_expr_expression.
-
-    DATA(table_expressions) = VALUE tt_expression_part( ).
-    " TODO: variable is assigned but only used in commented-out code (ABAP cleaner)
-    DATA(start_token_index) = current_token_index.
-    WHILE current_token_index <= lines( tokens ).
-      DATA(token) = REF #( tokens[ current_token_index ] OPTIONAL ).
-      DATA(expression) = VALUE to_expression( ).
-      CASE token->type.
-        WHEN '('.
-          " either a sub-expression like (1+1)
-          " or a union of ranges like (A1:A2,B1:B2) (which is equivalent to A1:B2)
-          " or an intersection of ranges like (A1:B2 B2:C3) (which is equivalent to B2)
-*            data sub_expressions type STANDARD TABLE OF ref to lif_expression with EMPTY KEY.
-*            while current_token_index < lines( tokens ).
-*            current_token_index = current_token_index + 1.
-*        if tokens[ current_token_index ]-type = ')'.
+  METHOD create_expression_from_token.
+    CASE token-type.
+      WHEN lcl_excelom_expr_lexer=>c_type-number.
+        " NB: the number 0.5 is represented in the formulas with the leading 0 (i.e. "0.5")
+        result = lcl_excelom_expr_number=>create( EXACT #( token-value ) ).
+      WHEN lcl_excelom_expr_lexer=>c_type-symbol_name.
+        " The word is a cell reference, name of named range, constant (TRUE, FALSE)
+*        IF token-value CP 'true' OR token-value CP 'false'.
+*          result = lcl_excelom_expr_boolean=>create( token-value ).
+*        ELSE.
+*          result = lcl_excelom_expr_range=>create( token-value ).
+*        ENDIF.
+      WHEN lcl_excelom_expr_lexer=>c_type-text_literal.
+        " Remove double quotes e.g. "say ""hello""" -> say "hello"
+        result = lcl_excelom_expr_string=>create( replace( val   = token-value
+                                                           regex = '^"|(")"|"$'
+                                                           with  = '$1'
+                                                           occ   = 0 ) ).
+*        WHEN lcl_excelom_expr_lexer=>c_type-parenthesis_open.
+*          " either a sub-expression like (1+1)
+*          " or a union of ranges like (A1:A2,B1:B2) (which is equivalent to A1:B2)
+*          " or an intersection of ranges like (A1:B2 B2:C3) (which is equivalent to B2)
+**            data sub_expressions type STANDARD TABLE OF ref to lif_expression with EMPTY KEY.
+**            while current_token_index < lines( tokens ).
+**            current_token_index = current_token_index + 1.
+**        if tokens[ current_token_index ]-type = ')'.
+**          current_token_index = current_token_index + 1.
+**          exit.
+**        endif.
+**            data(sub_expression) = parse_expression( ).
+**            append sub_expression to sub_expressions.
+**            ENDWHILE.
+**          append lcl_sub_expression=>create( ) to table_expressions.
+*        WHEN '['.
+*          " table1[
+*          " should not happen because it's processed with the previous word
+*          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
+*        WHEN '{'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        WHEN ')'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        WHEN ']'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        WHEN '}'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+**          result = lcl_array=>create( ).
+*        WHEN ` `.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        WHEN ':'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        WHEN ','.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*          " end of expression
+*          EXIT.
+*        WHEN ';'.
+*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*          " end of expression
+*          EXIT.
+*        WHEN lcl_excelom_expr_lexer=>c_type-function_name.
 *          current_token_index = current_token_index + 1.
-*          exit.
-*        endif.
-*            data(sub_expression) = parse_expression( ).
-*            append sub_expression to sub_expressions.
-*            ENDWHILE.
-*          append lcl_sub_expression=>create( ) to table_expressions.
-        WHEN '['.
-          " table1[
-          " should not happen because it's processed with the previous word
-          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
-        WHEN '{'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        WHEN ')'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        WHEN ']'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        WHEN '}'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*          result = lcl_array=>create( ).
-        WHEN ` `.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        WHEN ':'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        WHEN ','.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-          " end of expression
-          EXIT.
-        WHEN ';'.
-          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-          " end of expression
-          EXIT.
-        WHEN 'O'.
-          " operator
-          expression = VALUE #( ).
-          current_token_index = current_token_index + 1.
+*          DATA(arguments) = parse_function_arguments( ).
+*          expression = lcl_excelom_expr_function_call=>create( name      = token->value
+*                                                               arguments = arguments ).
+*        WHEN lcl_excelom_expr_lexer=>c_type-operator.
+*          expression = VALUE #( ).
+*          current_token_index = current_token_index + 1.
 *          CASE token->value.
 *            WHEN '+'.
 *              IF current_token_index = start_token_index OR tokens[ current_token_index - 1 ]-type <> 'W'.
@@ -1180,155 +1595,118 @@ CLASS lcl_excelom_expr_parser IMPLEMENTATION.
 *                APPEND value #( lcl_plus=>create( ) TO table_expressions.
 *              ENDIF.
 *          ENDCASE.
-        WHEN 'W'.
-          " word
-          IF current_token_index < lines( tokens ) AND tokens[ current_token_index + 1 ]-type = '('.
-            " The word is a function name
-            current_token_index = current_token_index + 1.
-            DATA(arguments) = parse_function_arguments( ).
-            expression = lcl_excelom_expr_function_call=>create( name      = token->value
-                                                                 arguments = arguments ).
-            " result = function.
-          ELSEIF current_token_index < lines( tokens ) AND tokens[ current_token_index + 1 ]-type = '['.
-            " The word is a table name e.g. Table1[] (means Table1[#Data])
-            DATA(row_column_specifiers) = VALUE string_table( ).
-            LOOP AT tokens REFERENCE INTO DATA(token_2)
-                 FROM current_token_index.
-              current_token_index = current_token_index + 1.
-              CASE token_2->type.
-                WHEN '['.
-                  IF token_2->value <> '['.
-                    APPEND token_2->value TO row_column_specifiers.
-                  ENDIF.
-                WHEN ']'.
-                  EXIT.
-              ENDCASE.
-            ENDLOOP.
-            expression = lcl_excelom_expr_table=>create( table_name            = token->value
-                                                         row_column_specifiers = row_column_specifiers ).
-          ELSEIF substring( val = token->value
-                            len = 1 ) CA '0123456789'.
-            " The word is a number.
-            " NB: the number 0.5 is represented in the formulas with the leading 0 (i.e. "0.5")
-            current_token_index = current_token_index + 1.
-            expression = lcl_excelom_expr_number=>create( EXACT #( token->value ) ).
-          ELSE.
-            " The word is a cell reference, name of named range, constant (TRUE, FALSE)
-            " TODO
-            current_token_index = current_token_index + 1.
-            expression = lcl_excelom_range=>create_from_address( address     = token->value
-                                                                 relative_to = formula_cell->parent( ) ).
-          ENDIF.
-        WHEN '"'.
-          " Remove double quotes e.g. "say ""hello""" -> say "hello"
-          current_token_index = current_token_index + 1.
-          expression = lcl_excelom_expr_string=>create( replace( val   = token->value
-                                                                 regex = '^"|(")"|"$'
-                                                                 with  = '$1'
-                                                                 occ   = 0 ) ).
-        WHEN OTHERS.
-          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
-      ENDCASE.
-      " Here, EXPRESSION maybe unbound like e.g. concerning operators.
-      APPEND VALUE #( s_token      = token
-                      o_expression = expression )
-             TO table_expressions.
+*        WHEN lcl_excelom_expr_lexer=>c_type-table_name.
+*          DATA(row_column_specifiers) = VALUE string_table( ).
+*          LOOP AT tokens REFERENCE INTO DATA(token_2)
+*               FROM current_token_index.
+*            current_token_index = current_token_index + 1.
+*            CASE token_2->type.
+*              WHEN '['.
+*                IF token_2->value <> '['.
+*                  APPEND token_2->value TO row_column_specifiers.
+*                ENDIF.
+*              WHEN ']'.
+*                EXIT.
+*            ENDCASE.
+*          ENDLOOP.
+*          expression = lcl_excelom_expr_table=>create( table_name            = token->value
+*                                                       row_column_specifiers = row_column_specifiers ).
+*        WHEN OTHERS.
+*          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD get_expression_from_group.
+    TYPES to_expression TYPE REF TO lif_excelom_expr_expression.
+    TYPES:
+      BEGIN OF ts_work,
+        position   TYPE sytabix,
+        token      TYPE REF TO lcl_excelom_expr_lexer=>ts_token,
+        expression TYPE REF TO lif_excelom_expr_expression,
+        operator   TYPE REF TO lcl_excelom_expr_operator,
+        priority   TYPE i,
+      END OF ts_work.
+    TYPES tt_work TYPE STANDARD TABLE OF ts_work WITH EMPTY KEY.
+
+    DATA(work_table) = VALUE tt_work( ).
+    DATA(token_index) = from.
+    WHILE token_index <= to.
+      DATA(token) = REF #( tokens[ token_index ] ).
+      DATA(operator) = COND #( WHEN token->type = lcl_excelom_expr_lexer=>c_type-operator
+                               THEN lcl_excelom_expr_operator=>get( token->value ) ).
+      INSERT VALUE #( position = token_index
+                      token    = token
+                      operator = operator
+                      priority = COND #( WHEN operator IS BOUND
+                                         THEN operator->get_priority( ) ) )
+             INTO TABLE work_table
+             REFERENCE INTO DATA(work_line).
+      DATA(parsed_group) = REF #( parsed_groups[ from_token = sy-tabix ] ).
+      IF parsed_group IS BOUND.
+        work_line->expression = parsed_group->expression.
+        token_index = parsed_group->to_token.
+      ELSE.
+        work_line->expression = create_expression_from_token( token = token->* ).
+      ENDIF.
+      token_index = token_index + 1.
     ENDWHILE.
-    IF lines( table_expressions ) = 1.
-      result = table_expressions[ 1 ]-o_expression.
-    ELSE.
-      " operator precedence
-      " Get operator priorities
-      TYPES:
-        BEGIN OF ts_operator,
-          name     TYPE string,
-          "! To distinguish unary from binary operators + and -
-          unary    TYPE abap_bool,
-          priority TYPE i,
-          "! % is the only postfix operator e.g. 10% (=0.1)
-          postfix  TYPE abap_bool,
-          desc     TYPE string,
-        END OF ts_operator.
-      TYPES tt_operator TYPE SORTED TABLE OF ts_operator WITH UNIQUE KEY name unary.
-      TYPES:
-        BEGIN OF ts_work,
-          position            TYPE sytabix,
-          operator            TYPE string,
-          operator_expression TYPE REF TO lif_excelom_expr_expression,
-          preceding_operand   TYPE ts_expression_part,
-          succeding_operand   TYPE ts_expression_part,
-          priority            TYPE i,
-        END OF ts_work.
-      TYPES tt_work TYPE STANDARD TABLE OF ts_work WITH EMPTY KEY.
-      " Priorities:
-      "  1  : (colon)  (single space) , (comma) Reference operators
-      "  2  – Negation (as in –1) + (as in +1)
-      "  3  % Percent (as in =50%)
-      "  4  ^ Exponentiation
-      "  5  * and / Multiplication and division
-      "  6  + and – Addition and subtraction
-      "  7  & Connects two strings of text (concatenation)
-      "  8  = < > <= >= <> Comparison
-      DATA(operators) = VALUE tt_operator( ( name = ':'              priority = 1  desc = 'range A1:A2 or A1:A2:A2' )
-                                           ( name = ` `              priority = 1  desc = 'intersection A1 A2' )
-                                           ( name = ','              priority = 1  desc = 'union A1,A2' )
-                                           ( name = '-'  unary = 'X' priority = 2  desc = '-1' )
-                                           ( name = '+'  unary = 'X' priority = 2  desc = '+1' )
-                                           ( name = '%'  unary = 'X' priority = 3  desc = 'percent' postfix = 'X' )
-                                           ( name = '^'              priority = 4  desc = 'exponent 2^8' )
-                                           ( name = '*'              priority = 5  desc = '2*2' )
-                                           ( name = '/'              priority = 5  desc = '2/2' )
-                                           ( name = '+'              priority = 6  desc = '2+2' )
-                                           ( name = '-'              priority = 6  desc = '2-2' )
-                                           ( name = '&'              priority = 7  desc = 'concatenate "A"&"B"' )
-                                           ( name = '='              priority = 8  desc = 'A1=1' )
-                                           ( name = '<'              priority = 8  desc = 'A1<1' )
-                                           ( name = '>'              priority = 8  desc = 'A1>1' )
-                                           ( name = '<='             priority = 8  desc = 'A1<=1' )
-                                           ( name = '>='             priority = 8  desc = 'A1>=1' )
-                                           ( name = '<>'             priority = 8  desc = 'A1<>1' ) ).
-      DATA(work_table) = VALUE tt_work( ).
-      LOOP AT table_expressions REFERENCE INTO DATA(expression_part)
-           WHERE s_token->type = 'O'.
-*        TRY.
-*            DATA(operator) = CAST lif_operator( expression_part->o_expression ).
-*          CATCH cx_sy_move_cast_error.
-*            CONTINUE.
-*        ENDTRY.
-        INSERT VALUE #( position            = sy-tabix
-                        operator            = expression_part->s_token->value
-                        operator_expression = VALUE #( )
-                        preceding_operand   = COND #( WHEN sy-tabix >= 2
-                                                      THEN VALUE #( table_expressions[ sy-tabix - 1 ] OPTIONAL ) )
-                        succeding_operand   = COND #( WHEN sy-tabix < lines( table_expressions )
-                                                      THEN VALUE #( table_expressions[ sy-tabix + 1 ] OPTIONAL ) )
-                        priority            = operators[ name = expression_part->s_token->value ]-priority )
-               INTO TABLE work_table.
-      ENDLOOP.
-      SORT work_table BY priority DESCENDING
-                         position.
-      " Determine operator expressions
-      LOOP AT work_table REFERENCE INTO DATA(work_line)
-           GROUP BY work_line->priority REFERENCE INTO DATA(group_by_priority).
-        DATA(buffer_expression) = VALUE to_expression( ).
-        LOOP AT GROUP group_by_priority REFERENCE INTO work_line.
-          IF buffer_expression IS NOT BOUND.
-            buffer_expression = work_line->preceding_operand-o_expression.
-          ENDIF.
-          CASE work_line->operator.
-            WHEN '+'.
-              work_line->operator_expression = lcl_excelom_expr_plus=>create(
-                                                   left_operand  = buffer_expression
-                                                   right_operand = work_line->succeding_operand-o_expression ).
-            WHEN OTHERS.
-              RAISE EXCEPTION TYPE lcx_excelom_expr_parser
-                EXPORTING text = |Invalid operator "{ work_line->operator }"|.
-          ENDCASE.
-          buffer_expression = work_line->operator_expression.
-        ENDLOOP.
-      ENDLOOP.
-      result = buffer_expression.
-    ENDIF.
+
+    SORT work_table BY priority DESCENDING
+                       position.
+
+    " Process operators with priority 1 first, then 2, etc.
+    " The priority 0 corresponds to functions and tables.
+    LOOP AT work_table REFERENCE INTO work_line
+         WHERE expression IS NOT BOUND.
+      CASE work_line->token->type.
+        WHEN lcl_excelom_expr_lexer=>c_type-operator.
+          DATA(operand_position_offsets) = work_line->operator->get_operand_position_offsets( ).
+          sort operand_position_offsets by table_line.
+          DATA(expression) = work_line->operator->create_expression(
+              operands = VALUE #(
+                  FOR <operand_position_offset> IN operand_position_offsets
+                  ( work_table[ position = work_line->position + <operand_position_offset> ]-expression ) ) ).
+          types tt_index type STANDARD table of i with EMPTY KEY.
+          DATA(indexes) = VALUE tt_index( ( work_line->position )
+                                          ( LINES OF VALUE #( FOR <operand_position_offset> IN operand_position_offsets
+                                                              ( work_line->position + <operand_position_offset> ) ) ) ).
+          SORT indexes BY table_line DESCENDING.
+          LOOP AT indexes INTO DATA(index).
+            DELETE work_table INDEX index.
+          ENDLOOP.
+        WHEN lcl_excelom_expr_lexer=>c_type-function_name.
+        WHEN lcl_excelom_expr_lexer=>c_type-table_name.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_token.
+  ENDMETHOD.
+
+  METHOD parse.
+    current_token_index = 1.
+    me->tokens = tokens.
+    me->parenthesis_groups = parenthesis_groups.
+    result = parse_expression( ).
+  ENDMETHOD.
+
+  METHOD parse_expression.
+    SORT parenthesis_groups BY level      DESCENDING
+                               from_token ASCENDING.
+    LOOP AT parenthesis_groups REFERENCE INTO data(parenthesis_group).
+      DATA(expression) = get_expression_from_group( from   = parenthesis_group->from_token
+                                                    to     = parenthesis_group->to_token
+                                                    tokens = tokens ).
+
+    ENDLOOP.
+    get_expression_from_group( from   = 1
+                               to     = lines( tokens )
+                               tokens = tokens ).
+*    DATA(expression_parts) = get_flat_expression_parts( ).
+*
+*    IF lines( expression_parts ) = 1.
+*      result = expression_parts[ 1 ]-o_expression.
+*    ENDIF.
   ENDMETHOD.
 
   METHOD parse_function_arguments.
@@ -1359,41 +1737,29 @@ ENDCLASS.
 CLASS lcl_excelom_expr_plus IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_plus( ).
-    result->left_operand  = left_operand.
-    result->right_operand = right_operand.
   ENDMETHOD.
 
   METHOD lif_excelom_expr_expression~evaluate.
-    data(array_evaluation) = LCL_excelom_expr_helper=>evaluate_array_operands( expression2   = me
-                                                                               left_operand  = left_operand
-                                                                               right_operand = right_operand ).
-    if array_evaluation-result is bound.
-      result = array_evaluation-result.
-    else.
-      IF     array_evaluation-left_operand->type  = lif_excelom_result=>c_type-number
-         AND array_evaluation-right_operand->type = lif_excelom_result=>c_type-number.
-        result = lcl_excelom_result_number=>create(
-                     CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( )
-                      + CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( ) ).
-      ELSEIF array_evaluation-left_operand->type = lif_excelom_result=>c_type-array.
-        DATA(left_array) = CAST lcl_excelom_result_array( array_evaluation-left_operand ).
-      ELSEIF array_evaluation-right_operand->type = lif_excelom_result=>c_type-array.
-        DATA(right_array) = CAST lcl_excelom_result_array( array_evaluation-right_operand ).
-      ELSEIF    array_evaluation-left_operand->type  = lif_excelom_result=>c_type-string
-             OR array_evaluation-right_operand->type = lif_excelom_result=>c_type-string.
-        result = lcl_excelom_result_error=>value_cannot_be_calculated.
-      ENDIF.
-    endif.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr_operator~get_priority.
-    result = 6.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr_operator~get_operand_positions.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr_operator~set_operands.
+*    data(array_evaluation) = LCL_excelom_expr_helper=>evaluate_array_operands( expression2   = me
+*                                                                               left_operand  = left_operand
+*                                                                               right_operand = right_operand ).
+*    if array_evaluation-result is bound.
+*      result = array_evaluation-result.
+*    else.
+*      IF     array_evaluation-left_operand->type  = lif_excelom_result=>c_type-number
+*         AND array_evaluation-right_operand->type = lif_excelom_result=>c_type-number.
+*        result = lcl_excelom_result_number=>create(
+*                     CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( )
+*                      + CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( ) ).
+*      ELSEIF array_evaluation-left_operand->type = lif_excelom_result=>c_type-array.
+*        DATA(left_array) = CAST lcl_excelom_result_array( array_evaluation-left_operand ).
+*      ELSEIF array_evaluation-right_operand->type = lif_excelom_result=>c_type-array.
+*        DATA(right_array) = CAST lcl_excelom_result_array( array_evaluation-right_operand ).
+*      ELSEIF    array_evaluation-left_operand->type  = lif_excelom_result=>c_type-string
+*             OR array_evaluation-right_operand->type = lif_excelom_result=>c_type-string.
+*        result = lcl_excelom_result_error=>value_cannot_be_calculated.
+*      ENDIF.
+*    endif.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1430,7 +1796,7 @@ ENDCLASS.
 
 CLASS lcl_excelom_formula2 IMPLEMENTATION.
   METHOD calculate.
-*    _expression->evaluate( ).
+    _expression->evaluate( ).
   ENDMETHOD.
 
   METHOD create.
@@ -1440,17 +1806,17 @@ CLASS lcl_excelom_formula2 IMPLEMENTATION.
     INSERT result INTO TABLE worksheet->formulas.
   ENDMETHOD.
 
-  METHOD set.
-    DATA(lexer) = lcl_excelom_expr_lexer=>create( ).
-    DATA(lexer_tokens) = lexer->lexe( value ).
-    IF lexer_tokens IS INITIAL.
-      RETURN.
-    ENDIF.
-    IF lexer_tokens[ 1 ]-value = '='.
-      DELETE lexer_tokens INDEX 1.
-    ENDIF.
-    DATA(parser) = lcl_excelom_expr_parser=>create( range ).
-    _expression = parser->parse( lexer_tokens ).
+  METHOD set_value.
+*    DATA(lexer) = lcl_excelom_expr_lexer=>create( ).
+*    DATA(lexer_tokens) = lexer->lexe( value ).
+*    IF lexer_tokens IS INITIAL.
+*      RETURN.
+*    ENDIF.
+*    IF lexer_tokens[ 1 ]-value = '='.
+*      DELETE lexer_tokens INDEX 1.
+*    ENDIF.
+*    DATA(parser) = lcl_excelom_expr_parser=>create( )."range ).
+*    _expression = parser->parse( lexer_tokens ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -1892,38 +2258,255 @@ CLASS lcl_excelom IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS ltc_lexer DEFINITION FINAL
+  FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
+
+  PRIVATE SECTION.
+    METHODS function FOR TESTING RAISING cx_static_check.
+    METHODS number FOR TESTING RAISING cx_static_check.
+    METHODS range FOR TESTING RAISING cx_static_check.
+    METHODS text_literal FOR TESTING RAISING cx_static_check.
+    METHODS text_literal_with_double_quote FOR TESTING RAISING cx_static_check.
+    METHODS smart_table FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_all FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_column FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_no_space FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_space_separator FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_space_boundaries FOR TESTING RAISING cx_static_check.
+    METHODS smart_table_space_all FOR TESTING RAISING cx_static_check.
+    METHODS very_long FOR TESTING RAISING cx_static_check.
+    METHODS arithmetic FOR TESTING RAISING cx_static_check.
+
+    TYPES tt_parenthesis_group TYPE lcl_excelom_expr_lexer=>tt_parenthesis_group.
+    TYPES tt_token             TYPE lcl_excelom_expr_lexer=>tt_token.
+    TYPES ts_result_lexe       TYPE lcl_excelom_expr_lexer=>ts_result_lexe.
+
+    CONSTANTS c_type LIKE lcl_excelom_expr_lexer=>c_type VALUE lcl_excelom_expr_lexer=>c_type.
+
+    METHODS lexe
+      IMPORTING !text         TYPE csequence
+      RETURNING VALUE(result) TYPE ts_result_lexe.
+
+ENDCLASS.
+
+
 CLASS ltc_parser DEFINITION FINAL
   FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
 
   PRIVATE SECTION.
-    METHODS test   FOR TESTING RAISING cx_static_check.
-    METHODS test2  FOR TESTING RAISING cx_static_check.
-    METHODS test3  FOR TESTING RAISING cx_static_check.
+    METHODS lexe_parse_evaluate  FOR TESTING RAISING cx_static_check.
+    METHODS one_plus_one FOR TESTING RAISING cx_static_check.
     METHODS test4  FOR TESTING RAISING cx_static_check.
     METHODS test31 FOR TESTING RAISING cx_static_check.
 
     TYPES tt_token TYPE lcl_excelom_expr_lexer=>tt_token.
 
-    METHODS lexe
-      IMPORTING !text         TYPE csequence
-      RETURNING VALUE(result) TYPE lcl_excelom_expr_lexer=>tt_token.
+    CONSTANTS c_type LIKE lcl_excelom_expr_lexer=>c_type VALUE lcl_excelom_expr_lexer=>c_type.
 
-    METHODS parse IMPORTING lexer_tokens  TYPE lcl_excelom_expr_lexer=>tt_token
-                  RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+    METHODS assert_equals
+      IMPORTING act            TYPE REF TO lif_excelom_expr_expression
+                exp            TYPE REF TO lif_excelom_expr_expression
+      RETURNING VALUE(result)  TYPE REF TO lif_excelom_result.
 
-    METHODS evaluate IMPORTING expression    TYPE REF TO lif_excelom_expr_expression
-                     RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+    METHODS parse
+      IMPORTING !tokens            TYPE lcl_excelom_expr_lexer=>tt_token
+                parenthesis_groups TYPE lcl_excelom_expr_lexer=>tt_parenthesis_group OPTIONAL
+      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr_expression
+      RAISING   lcx_excelom_expr_parser.
 
-    METHODS get_texts_from_matches IMPORTING i_string      TYPE string
-                                             i_matches     TYPE match_result_tab
-                                   RETURNING VALUE(result) TYPE string_table.
+    METHODS evaluate
+      IMPORTING expression    TYPE REF TO lif_excelom_expr_expression
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+
+    METHODS get_texts_from_matches
+      IMPORTING i_string      TYPE string
+                i_matches     TYPE match_result_tab
+      RETURNING VALUE(result) TYPE string_table.
+
+ENDCLASS.
+
+
+CLASS ltc_lexer IMPLEMENTATION.
+  METHOD lexe.
+    DATA(lexer) = lcl_excelom_expr_lexer=>create( ).
+    result = lexer->lexe( text ).
+  ENDMETHOD.
+
+  METHOD arithmetic.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( '2*(1+3*(5-1))' ) "-tokens
+        exp = VALUE ts_result_lexe( tokens             = VALUE #( ( value = `2`  type = c_type-number )
+                                                                  ( value = `*`  type = c_type-operator )
+                                                                  ( value = `(`  type = c_type-parenthesis_open )
+                                                                  ( value = `1`  type = c_type-number )
+                                                                  ( value = `+`  type = c_type-operator )
+                                                                  ( value = `3`  type = c_type-number )
+                                                                  ( value = `*`  type = c_type-operator )
+                                                                  ( value = `(`  type = c_type-parenthesis_open )
+                                                                  ( value = `5`  type = c_type-number )
+                                                                  ( value = `-`  type = c_type-operator )
+                                                                  ( value = `1`  type = c_type-number )
+                                                                  ( value = `)`  type = c_type-parenthesis_close )
+                                                                  ( value = `)`  type = c_type-parenthesis_close ) )
+                                    parenthesis_groups = VALUE #( ( from_token = 3 to_token = 13 level = 1 last_subgroup_token = 12 )
+                                                                  ( from_token = 8 to_token = 12 level = 2 last_subgroup_token = 11 ) ) ) ).
+  ENDMETHOD.
+
+  METHOD function.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( 'IF(1=1,0,1)' ) "-tokens
+        exp = VALUE ts_result_lexe( tokens             = VALUE #( ( value = `IF` type = c_type-function_name )
+                                                                  ( value = `(`  type = '(' )
+                                                                  ( value = `1`  type = c_type-number )
+                                                                  ( value = `=`  type = c_type-operator )
+                                                                  ( value = `1`  type = c_type-number )
+                                                                  ( value = `,`  type = ',' )
+                                                                  ( value = `0`  type = c_type-number )
+                                                                  ( value = `,`  type = ',' )
+                                                                  ( value = `1`  type = c_type-number )
+                                                                  ( value = `)`  type = ')' ) )
+                                    parenthesis_groups = VALUE #( ( from_token = 2 to_token = 10 level = 1 last_subgroup_token = 9 )
+                                                                  ( from_token = 3 to_token =  5 level = 2 last_subgroup_token = 0 )
+                                                                  ( from_token = 7 to_token =  7 level = 2 last_subgroup_token = 0 )
+                                                                  ( from_token = 9 to_token =  9 level = 2 last_subgroup_token = 0 ) ) ) ).
+  ENDMETHOD.
+
+  METHOD number.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( '25' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `25` type = c_type-number ) ) ) ).
+  ENDMETHOD.
+
+  METHOD range.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( 'Sheet1!$A$1' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Sheet1!$A$1` type = 'W' ) ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( `'Sheet 1'!$A$1` )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `'Sheet 1'!$A$1` type = 'W' ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( 'Table1[]' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1` type = c_type-table_name )
+                                                      ( value = `[`      type = `[` )
+                                                      ( value = `]`      type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_all.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( 'Table1[[#All]]' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1` type = c_type-table_name )
+                                                      ( value = `[`      type = `[` )
+                                                      ( value = `[#All]` type = `[` )
+                                                      ( value = `]`      type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_column.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( 'Table1[Column1]' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1`    type = c_type-table_name )
+                                                      ( value = `[Column1]` type = `[` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_no_space.
+    " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( `DeptSales[[#Headers],[#Data],[% Commission]]` )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
+                                                      ( value = `[`              type = `[` )
+                                                      ( value = `[#Headers]`     type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[#Data]`        type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[% Commission]` type = `[` )
+                                                      ( value = `]`              type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_space_all.
+    " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( `DeptSales[ [#Headers], [#Data], [% Commission] ]` )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
+                                                      ( value = `[`              type = `[` )
+                                                      ( value = `[#Headers]`     type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[#Data]`        type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[% Commission]` type = `[` )
+                                                      ( value = `]`              type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_space_boundaries.
+    " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( `DeptSales[ [#Headers],[#Data],[% Commission] ]` )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
+                                                      ( value = `[`              type = `[` )
+                                                      ( value = `[#Headers]`     type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[#Data]`        type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[% Commission]` type = `[` )
+                                                      ( value = `]`              type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD smart_table_space_separator.
+    " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( `DeptSales[[#Headers], [#Data], [% Commission]]` )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
+                                                      ( value = `[`              type = `[` )
+                                                      ( value = `[#Headers]`     type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[#Data]`        type = `[` )
+                                                      ( value = `,`              type = `,` )
+                                                      ( value = `[% Commission]` type = `[` )
+                                                      ( value = `]`              type = `]` ) ) ) ).
+  ENDMETHOD.
+
+  METHOD text_literal.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( '"IF(1=1,0,1)"' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `"IF(1=1,0,1)"` type = '"' ) ) ) ).
+  ENDMETHOD.
+
+  METHOD text_literal_with_double_quote.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( '"IF(A1=""X"",0,1)"' )
+        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `"IF(A1=""X"",0,1)"` type = '"' ) ) ) ).
+  ENDMETHOD.
+
+  METHOD very_long.
+    cl_abap_unit_assert=>assert_equals(
+        act = lexe( |(a{ repeat( val = ',a'
+                                 occ = 5000 )
+                    })| )
+        exp = VALUE ts_result_lexe(
+                  tokens             = VALUE #( ( value = `(` type = '(' )
+                                                ( value = `a` type = 'W' )
+                                                ( LINES OF VALUE
+                                                  tt_token( FOR i = 1 WHILE i <= 5000
+                                                            ( value = `,` type = ',' )
+                                                            ( value = `a` type = 'W' ) ) )
+                                                ( value = `)` type = ')' ) )
+                  parenthesis_groups = VALUE #(
+                      ( from_token = 1 to_token = 10003 level = 1 last_subgroup_token = 10002 )
+                      ( LINES OF VALUE
+                        tt_parenthesis_group( FOR i = 1 WHILE i <= 5001
+                                              ( from_token = i * 2 to_token = i * 2 level = 2 last_subgroup_token = 0 ) ) ) ) ) ).
+  ENDMETHOD.
 
 ENDCLASS.
 
 
 CLASS ltc_parser IMPLEMENTATION.
+  METHOD assert_equals.
+  ENDMETHOD.
+
   METHOD evaluate.
-*    result = expression->evaluate( ).
+    result = expression->evaluate( ).
   ENDMETHOD.
 
   METHOD get_texts_from_matches.
@@ -1934,95 +2517,26 @@ CLASS ltc_parser IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
-  METHOD lexe.
-    DATA(lexer) = lcl_excelom_expr_lexer=>create( ).
-    result = lexer->lexe( text ).
+  METHOD one_plus_one.
+    assert_equals( act = parse( tokens = VALUE #( ( value = `1`  type = c_type-number )
+                                                  ( value = `+`  type = c_type-operator )
+                                                  ( value = `1`  type = c_type-number ) ) )
+                   exp = lcl_excelom_expr_plus=>create( left_operand  = lcl_excelom_expr_number=>create( 1 )
+                                                        right_operand = lcl_excelom_expr_number=>create( 1 ) ) ).
   ENDMETHOD.
 
   METHOD parse.
-    DATA(parser) = lcl_excelom_expr_parser=>create( lcl_excelom_range=>create_from_address(
-                                                        address     = 'A1'
-                                                        relative_to = lcl_excelom_worksheet=>create( ) ) ).
-    result = parser->parse( lexer_tokens ).
+    result = lcl_excelom_expr_parser=>create( )->parse( tokens             = tokens
+                                                        parenthesis_groups = parenthesis_groups ).
+*    DATA(parser) = lcl_excelom_expr_parser=>create( lcl_excelom_range=>create_from_address(
+*                                                        address     = 'A1'
+*                                                        relative_to = lcl_excelom_worksheet=>create( ) ) ).
+*    result = parser->parse( lexer_tokens ).
   ENDMETHOD.
 
-  METHOD test.
-    cl_abap_unit_assert=>assert_equals( act = lexe( 'IF(1=1,0,1)' )
-                                        exp = VALUE tt_token( ( value = `IF` type = 'W' )
-                                                              ( value = `(`  type = '(' )
-                                                              ( value = `1`  type = 'W' )
-                                                              ( value = `=`  type = 'O' )
-                                                              ( value = `1`  type = 'W' )
-                                                              ( value = `,`  type = ',' )
-                                                              ( value = `0`  type = 'W' )
-                                                              ( value = `,`  type = ',' )
-                                                              ( value = `1`  type = 'W' )
-                                                              ( value = `)`  type = ')' ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( 'Sheet1!$A$1' )
-                                        exp = VALUE tt_token( ( value = `Sheet1!$A$1` type = 'W' ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( '"IF(1=1,0,1)"' )
-                                        exp = VALUE tt_token( ( value = `"IF(1=1,0,1)"` type = '"' ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( '"IF(A1=""X"",0,1)"' )
-                                        exp = VALUE tt_token( ( value = `"IF(A1=""X"",0,1)"` type = '"' ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( |(a{ repeat( val = ',a'
-                                                                 occ = 5000 ) })| )
-                                        exp = VALUE tt_token( ( value = `(` type = '(' )
-                                                              ( value = `a` type = 'W' )
-                                                              ( LINES OF VALUE
-                                                                tt_token( FOR i = 1 WHILE i <= 5000
-                                                                          ( value = `,` type = ',' )
-                                                                          ( value = `a` type = 'W' ) ) )
-                                                              ( value = `)` type = ')' ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( 'Table1[]' )
-                                        exp = VALUE tt_token( ( value = `Table1` type = 'W' )
-                                                              ( value = `[`     type = `[` )
-                                                              ( value = `]`     type = `]` )  ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( 'Table1[Column1]' )
-                                        exp = VALUE tt_token( ( value = `Table1`    type = 'W' )
-                                                              ( value = `[Column1]` type = `[` ) ) ).
-  ENDMETHOD.
-
-  METHOD test2.
-    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[[#Headers],[#Data],[% Commission]]` )
-                                        exp = VALUE tt_token( ( value = `DeptSales`      type = 'W' )
-                                                              ( value = `[`              type = `[` )
-                                                              ( value = `[#Headers]`     type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[#Data]`        type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[% Commission]` type = `[` )
-                                                              ( value = `]`              type = `]` ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[ [#Headers],[#Data],[% Commission] ]` )
-                                        exp = VALUE tt_token( ( value = `DeptSales`      type = 'W' )
-                                                              ( value = `[`              type = `[` )
-                                                              ( value = `[#Headers]`     type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[#Data]`        type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[% Commission]` type = `[` )
-                                                              ( value = `]`              type = `]` ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[[#Headers], [#Data], [% Commission]]` )
-                                        exp = VALUE tt_token( ( value = `DeptSales`      type = 'W' )
-                                                              ( value = `[`              type = `[` )
-                                                              ( value = `[#Headers]`     type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[#Data]`        type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[% Commission]` type = `[` )
-                                                              ( value = `]`              type = `]` ) ) ).
-    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[ [#Headers], [#Data], [% Commission] ]` )
-                                        exp = VALUE tt_token( ( value = `DeptSales`      type = 'W' )
-                                                              ( value = `[`              type = `[` )
-                                                              ( value = `[#Headers]`     type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[#Data]`        type = `[` )
-                                                              ( value = `,`              type = `,` )
-                                                              ( value = `[% Commission]` type = `[` )
-                                                              ( value = `]`              type = `]` ) ) ).
-  ENDMETHOD.
-
-  METHOD test3.
-    DATA(result) = evaluate( parse( lexe( `1+1` ) ) ).
+  METHOD lexe_parse_evaluate.
+    DATA(lexe_result) = lcl_excelom_expr_lexer=>create( )->lexe( `1+1` ).
+    DATA(result) = evaluate( parse( tokens = lexe_result-tokens ) ).
     cl_abap_unit_assert=>assert_equals( act = result->type
                                         exp = result->c_type-number ).
     cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( result )->get_number( )
@@ -2035,7 +2549,7 @@ CLASS ltc_parser IMPLEMENTATION.
     DATA(worksheet) = workbook->worksheets( )->item( 'Sheet1' ).
     worksheet->range_from_address( 'A1' )->value( )->set_double( 10 ).
     DATA(range) = worksheet->range_from_address( 'A2' ).
-    range->formula2( )->set( '=A1+1' ).
+    range->formula2( )->set_value( '=A1+1' ).
     app->calculate( ).
     cl_abap_unit_assert=>assert_equals( act = range->value( )
                                         exp = 11 ).
