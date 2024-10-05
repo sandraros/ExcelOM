@@ -1,65 +1,103 @@
 REPORT zzsro_excel_formula_engine.
 
-* formula with operation on arrays        result
-*
-* -> if the left operand is one line high, the line is replicated till max lines of the right operand.
-* -> if the left operand is one column wide, the column is replicated till max columns of the right operand.
-* -> if the right operand is one line high, the line is replicated till max lines of the left operand.
-* -> if the right operand is one column wide, the column is replicated till max columns of the left operand.
-*
-* -> if the left operand has less lines than the right operand, additional lines are added with #N/A.
-* -> if the left operand has less columns than the right operand, additional columns are added with #N/A.
-* -> if the right operand has less lines than the left operand, additional lines are added with #N/A.
-* -> if the right operand has less columns than the left operand, additional columns are added with #N/A.
-*
-* -> target array size = max lines of both operands + max columns of both operands.
-* -> each target cell of the target array is calculated like this:
-*    T(1,1) = L(1,1) op R(1,1)
-*    T(2,1) = L(2,1) op R(2,1)
-*    etc.
-*    If the left cell or right cell is #N/A, the target cell is also #N/A.
-*
-* Examples where one of the two operands has 1 cell, 1 line or 1 column
-*
-* a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
-*
-* a | b | c   op   k                      a op k | b op k | c op k
-* d | e | f                               d op k | e op k | f op k
-* g | h | i                               g op k | h op k | i op k
-*
-* a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
-* d | e | f                               d op k | e op l | f op m | #N/A
-* g | h | i                               g op k | h op l | i op m | #N/A
-*
-* a | b | c   op   k                      a op k | b op k | c op k
-* d | e | f        l                      d op l | e op l | f op l
-* g | h | i        m                      g op m | h op m | i op m
-*                  n                      #N/A   | #N/A   | #N/A
-*
-* a | b | c   op   k                      a op k | b op k | c op k
-* d | e | f        l                      d op l | e op l | f op l
-* g | h | i                               #N/A   | #N/A   | #N/A
-*
-* a | b | c   op   k                      a op k | b op k | c op k
-*                  l                      a op l | b op l | c op l
-*                  m                      a op m | b op m | c op m
-*
-* Both operands have more than 1 line and more than 1 column
-*
-* a | b | c   op   k | n                  a op k | b op n | #N/A
-* d | e | f        l | o                  d op l | e op o | #N/A
-* g | h | i                               #N/A   | #N/A   | #N/A
-*
-* a | b | c   op   k | n                  a op k | b op n | #N/A
-* d | e | f        l | o                  d op l | e op o | #N/A
-*                  m | p                  #N/A   | #N/A   | #N/A
-*
-* a | b       op   k | n | q              a op k | b op n | #N/A
-* d | e            l | o | r              d op l | e op o | #N/A
-* g | h                                   #N/A   | #N/A   | #N/A
+" Excel saves formulas with R1C1-style addresses in A1 style.
+"
+" EXCELOM will convert R1C1-style addresses into A1 style during the parsing
+" of the formula, which means that the parsing needs to know in which cell
+" the formula is stored to resolve addresses like R[+1]C[+1].
+" The method "calculate" doesn't need to know in which cell the formula is stored
+" because the addresses are stored internally in A1 style but needs to know in which
+" worksheet the formula runs ("B2" might refer to any worksheet). To simplify,
+" the parsing will store internally the exact cell referred
+"
+" & : not a function but is an alias of CONCATENATE
+" ADDRESS
+" AND : logical boolean function
+" CELL
+" CHOOSE : conditional function, the first argument is an integer, if it's 1 the result will be the second argument, if it's 2 the result will be the third argument, etc.
+" COLUMN
+" CONCATENATE
+" COUNTIF
+" FILTER
+" FIND
+" FLOOR.MATH
+" IF
+" IFERROR
+" IFS
+" INDEX
+" INDIRECT
+" LEFT
+" LEN
+" MATCH
+" MID
+" MOD
+" OFFSET
+" RIGHT
+" ROW
+" T
+" VLOOKUP
+"
+"  formula with operation on arrays        result
+"
+"  -> if the left operand is one line high, the line is replicated till max lines of the right operand.
+"  -> if the left operand is one column wide, the column is replicated till max columns of the right operand.
+"  -> if the right operand is one line high, the line is replicated till max lines of the left operand.
+"  -> if the right operand is one column wide, the column is replicated till max columns of the left operand.
+"
+"  -> if the left operand has less lines than the right operand, additional lines are added with #N/A.
+"  -> if the left operand has less columns than the right operand, additional columns are added with #N/A.
+"  -> if the right operand has less lines than the left operand, additional lines are added with #N/A.
+"  -> if the right operand has less columns than the left operand, additional columns are added with #N/A.
+"
+"  -> target array size = max lines of both operands + max columns of both operands.
+"  -> each target cell of the target array is calculated like this:
+"     T(1,1) = L(1,1) op R(1,1)
+"     T(2,1) = L(2,1) op R(2,1)
+"     etc.
+"     If the left cell or right cell is #N/A, the target cell is also #N/A.
+"
+"  Examples where one of the two operands has 1 cell, 1 line or 1 column
+"
+"  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
+"
+"  a | b | c   op   k                      a op k | b op k | c op k
+"  d | e | f                               d op k | e op k | f op k
+"  g | h | i                               g op k | h op k | i op k
+"
+"  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
+"  d | e | f                               d op k | e op l | f op m | #N/A
+"  g | h | i                               g op k | h op l | i op m | #N/A
+"
+"  a | b | c   op   k                      a op k | b op k | c op k
+"  d | e | f        l                      d op l | e op l | f op l
+"  g | h | i        m                      g op m | h op m | i op m
+"                   n                      #N/A   | #N/A   | #N/A
+"
+"  a | b | c   op   k                      a op k | b op k | c op k
+"  d | e | f        l                      d op l | e op l | f op l
+"  g | h | i                               #N/A   | #N/A   | #N/A
+"
+"  a | b | c   op   k                      a op k | b op k | c op k
+"                   l                      a op l | b op l | c op l
+"                   m                      a op m | b op m | c op m
+"
+"  Both operands have more than 1 line and more than 1 column
+"
+"  a | b | c   op   k | n                  a op k | b op n | #N/A
+"  d | e | f        l | o                  d op l | e op o | #N/A
+"  g | h | i                               #N/A   | #N/A   | #N/A
+"
+"  a | b | c   op   k | n                  a op k | b op n | #N/A
+"  d | e | f        l | o                  d op l | e op o | #N/A
+"                   m | p                  #N/A   | #N/A   | #N/A
+"
+"  a | b       op   k | n | q              a op k | b op n | #N/A
+"  d | e            l | o | r              d op l | e op o | #N/A
+"  g | h                                   #N/A   | #N/A   | #N/A
 
-CLASS lcl_excelom DEFINITION DEFERRED.
+CLASS lcl_excelom_application DEFINITION DEFERRED.
 CLASS lcl_excelom_error_value DEFINITION DEFERRED.
+CLASS lcl_excelom_evaluation_context DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_array DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_expressions DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_function_call DEFINITION DEFERRED.
@@ -70,7 +108,7 @@ CLASS lcl_excelom_expr_plus DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_string DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_sub_expr DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_table DEFINITION DEFERRED.
-CLASS lcl_excelom_formula2 DEFINITION DEFERRED.
+*CLASS lcl_excelom_formula2 DEFINITION DEFERRED.
 CLASS lcl_excelom_range DEFINITION DEFERRED.
 CLASS lcl_excelom_range_value DEFINITION DEFERRED.
 CLASS lcl_excelom_result_array DEFINITION DEFERRED.
@@ -85,7 +123,7 @@ CLASS lcx_excelom_expr_parser DEFINITION DEFERRED.
 CLASS lcx_excelom_to_do DEFINITION DEFERRED.
 CLASS lcx_excelom_unexpected DEFINITION DEFERRED.
 INTERFACE lif_excelom_all_friends DEFERRED.
-INTERFACE lif_excelom_expr_expression DEFERRED.
+INTERFACE lif_excelom_expr DEFERRED.
 INTERFACE lif_excelom_result DEFERRED.
 
 
@@ -157,7 +195,7 @@ INTERFACE lif_excelom_all_friends.
 ENDINTERFACE.
 
 
-INTERFACE lif_excelom_expr_expression.
+INTERFACE lif_excelom_expr.
   TYPES ty_expression_type TYPE i.
 
   CONSTANTS:
@@ -171,10 +209,13 @@ INTERFACE lif_excelom_expr_expression.
 
   DATA type TYPE ty_expression_type READ-ONLY.
 
-  METHODS is_equal IMPORTING expression TYPE REF TO lif_excelom_expr_expression
+  METHODS is_equal
+  IMPORTING expression TYPE REF TO lif_excelom_expr
     RETURNING VALUE(result) type abap_bool.
 
-  METHODS evaluate RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+  METHODS evaluate
+  importing context type ref to lcl_excelom_evaluation_context
+  RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
 ENDINTERFACE.
 
 
@@ -197,6 +238,21 @@ INTERFACE lif_excelom_result.
     IMPORTING column_offset TYPE i
               row_offset    TYPE i
     RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+
+  METHODS is_array
+    RETURNING VALUE(result) TYPE abap_bool.
+
+  METHODS is_boolean
+    RETURNING VALUE(result) TYPE abap_bool.
+
+  METHODS is_error
+    RETURNING VALUE(result) TYPE abap_bool.
+
+  METHODS is_number
+    RETURNING VALUE(result) TYPE abap_bool.
+
+  METHODS is_string
+    RETURNING VALUE(result) TYPE abap_bool.
 
   METHODS set_cell_value
     IMPORTING column_offset TYPE i
@@ -226,9 +282,10 @@ CLASS lcl_excelom_exprh DEFINITION.
         right_operand TYPE REF TO lif_excelom_result,
       END OF ts_evaluate_array_operands.
     CLASS-METHODS evaluate_array_operands
-      IMPORTING expression    TYPE REF TO lif_excelom_expr_expression
-                left_operand  TYPE REF TO lif_excelom_expr_expression
-                right_operand TYPE REF TO lif_excelom_expr_expression
+      IMPORTING expression    TYPE REF TO lif_excelom_expr
+                context type REF TO lcl_excelom_evaluation_context
+                left_operand  TYPE REF TO lif_excelom_expr
+                right_operand TYPE REF TO lif_excelom_expr
       RETURNING VALUE(result) TYPE ts_evaluate_array_operands.
 ENDCLASS.
 
@@ -258,7 +315,7 @@ CLASS lcl_excelom_exprh_lexer DEFINITION FINAL
     TYPES:
       BEGIN OF ts_result_lexe,
         tokens             TYPE tt_token,
-        parenthesis_groups TYPE tt_parenthesis_group,
+*        parenthesis_groups TYPE tt_parenthesis_group,
       END OF ts_result_lexe.
 
     CONSTANTS:
@@ -286,7 +343,7 @@ CLASS lcl_excelom_exprh_lexer DEFINITION FINAL
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_exprh_lexer.
 
     METHODS lexe IMPORTING !text         TYPE csequence
-                 RETURNING VALUE(result) TYPE ts_result_lexe.
+                 RETURNING VALUE(result) TYPE tt_token. "ts_result_lexe.
 
   PRIVATE SECTION.
     "! Insert the parts of the text in "FIND ... IN text ..." for which there was no match.
@@ -305,13 +362,14 @@ CLASS lcl_excelom_exprh_group DEFINITION FINAL
         token      TYPE REF TO lcl_excelom_exprh_lexer=>ts_token,
         group      TYPE REF TO lcl_excelom_exprh_group,
         operator   TYPE REF TO lcl_excelom_exprh_operator,
-        expression TYPE REF TO lif_excelom_expr_expression,
+        priority   TYPE i,
+        expression TYPE REF TO lif_excelom_expr,
       END OF ts_item.
     TYPES tt_item TYPE STANDARD TABLE OF ts_item.
 
     DATA type       TYPE lcl_excelom_exprh_lexer=>ts_token-type READ-ONLY.
     DATA operator   TYPE REF TO lcl_excelom_exprh_operator      READ-ONLY.
-    DATA expression TYPE REF TO lif_excelom_expr_expression     READ-ONLY.
+    DATA expression TYPE REF TO lif_excelom_expr     READ-ONLY.
     DATA items      TYPE tt_item                                READ-ONLY.
 
     METHODS append
@@ -329,11 +387,11 @@ CLASS lcl_excelom_exprh_group DEFINITION FINAL
                 !index TYPE i.
 
     METHODS set_expression
-      IMPORTING expression TYPE REF TO lif_excelom_expr_expression.
+      IMPORTING expression TYPE REF TO lif_excelom_expr.
 
     METHODS set_item_expression
       IMPORTING !index     TYPE sytabix
-                expression TYPE REF TO lif_excelom_expr_expression.
+                expression TYPE REF TO lif_excelom_expr.
 
     METHODS set_item_group
       IMPORTING !index TYPE sytabix
@@ -345,6 +403,10 @@ CLASS lcl_excelom_exprh_group DEFINITION FINAL
 
     METHODS set_operator
       IMPORTING operator TYPE REF TO lcl_excelom_exprh_operator.
+    METHODS set_item_priority
+      IMPORTING
+        index    TYPE syst-tabix
+        priority TYPE i.
 
   PRIVATE SECTION.
 ENDCLASS.
@@ -358,7 +420,7 @@ CLASS lcl_excelom_exprh_operator DEFINITION FINAL
 *    INTERFACES lif_excelom_expr_operator.
 
     TYPES tt_operand_position_offset TYPE STANDARD TABLE OF i WITH EMPTY KEY.
-    TYPES tt_expression              TYPE STANDARD TABLE OF REF TO lif_excelom_expr_expression WITH EMPTY KEY.
+    TYPES tt_expression              TYPE STANDARD TABLE OF REF TO lif_excelom_expr WITH EMPTY KEY.
 
     CLASS-DATA multiply TYPE REF TO lcl_excelom_exprh_operator READ-ONLY.
     CLASS-DATA plus TYPE REF TO lcl_excelom_exprh_operator READ-ONLY.
@@ -373,10 +435,11 @@ CLASS lcl_excelom_exprh_operator DEFINITION FINAL
 
     METHODS create_expression
       IMPORTING operands      TYPE tt_expression
-      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr.
 
     CLASS-METHODS get
       IMPORTING operator TYPE string
+                unary    TYPE abap_bool
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_exprh_operator.
 
     "! <ul>
@@ -412,29 +475,29 @@ CLASS lcl_excelom_exprh_operator DEFINITION FINAL
       "! Get operator priorities
       BEGIN OF ts_operator,
         name              TYPE string,
-*        "! +1 for unary operators (e.g. -1)
-*        "! -1 and +1 for binary operators (e.g. 1*2)
-*        "! -1 for postfix operators (e.g. 10%)
-*        operand_position_offsets TYPE tt_operand_position_offset,
-**        "! To distinguish unary from binary operators + and -
-**        unary             TYPE abap_bool,
-*        "! <ul>
-*        "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
-*        "! <li>2 : – (as in –1) and + (as in +1)</li>
-*        "! <li>3 : % (as in =50%)</li>
-*        "! <li>4 : ^ Exponentiation (as in 2^8)</li>
-*        "! <li>5 : * and / Multiplication and division                    </li>
-*        "! <li>6 : + and – Addition and subtraction                       </li>
-*        "! <li>7 : & Connects two strings of text (concatenation)         </li>
-*        "! <li>8 : = < > <= >= <> Comparison</li>
-*        "! </ul>
-*        priority          TYPE i,
-**        "! % is the only postfix operator e.g. 10% (=0.1)
-**        postfix           TYPE abap_bool,
-*        desc              TYPE string,
+        "! +1 for unary operators (e.g. -1)
+        "! -1 and +1 for binary operators (e.g. 1*2)
+        "! -1 for postfix operators (e.g. 10%)
+        operand_position_offsets TYPE tt_operand_position_offset,
+        "! To distinguish unary from binary operators + and -
+        unary             TYPE abap_bool,
+        "! <ul>
+        "! <li>1 : Reference operators ":" (colon), " " (single space), "," (comma)</li>
+        "! <li>2 : – (as in –1) and + (as in +1)</li>
+        "! <li>3 : % (as in =50%)</li>
+        "! <li>4 : ^ Exponentiation (as in 2^8)</li>
+        "! <li>5 : * and / Multiplication and division                    </li>
+        "! <li>6 : + and – Addition and subtraction                       </li>
+        "! <li>7 : & Connects two strings of text (concatenation)         </li>
+        "! <li>8 : = < > <= >= <> Comparison</li>
+        "! </ul>
+        priority          TYPE i,
+*        "! % is the only postfix operator e.g. 10% (=0.1)
+*        postfix           TYPE abap_bool,
+        desc              TYPE string,
         handler           TYPE REF TO lcl_excelom_exprh_operator,
       END OF ts_operator.
-    TYPES tt_operator TYPE SORTED TABLE OF ts_operator WITH UNIQUE KEY name.
+    TYPES tt_operator TYPE SORTED TABLE OF ts_operator WITH UNIQUE KEY name unary.
 
     CLASS-DATA operators TYPE lcl_excelom_exprh_operator=>tt_operator.
 
@@ -467,8 +530,8 @@ CLASS lcl_excelom_exprh_parser DEFINITION FINAL
 
     METHODS parse
       IMPORTING !tokens            TYPE lcl_excelom_exprh_lexer=>tt_token
-                parenthesis_groups TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group
-      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr_expression
+*                parenthesis_groups TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group
+      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr
       RAISING   lcx_excelom_expr_parser.
 
   PRIVATE SECTION.
@@ -476,7 +539,7 @@ CLASS lcl_excelom_exprh_parser DEFINITION FINAL
       BEGIN OF ts_parsed_group,
         from_token TYPE i,
         to_token   TYPE i,
-        expression TYPE REF TO lif_excelom_expr_expression,
+        expression TYPE REF TO lif_excelom_expr,
       END OF ts_parsed_group.
     TYPES tt_parsed_group TYPE STANDARD TABLE OF ts_parsed_group WITH EMPTY KEY.
 
@@ -484,14 +547,15 @@ CLASS lcl_excelom_exprh_parser DEFINITION FINAL
     DATA formula_offset      TYPE i.
     DATA current_token_index TYPE sytabix.
     DATA tokens              TYPE lcl_excelom_exprh_lexer=>tt_token.
-    DATA parenthesis_groups  TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group.
+*    DATA parenthesis_groups  TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group.
     DATA parsed_groups       TYPE tt_parsed_group.
+    DATA previous_token_type TYPE lcl_excelom_exprh_lexer=>ts_token-type.
+    DATA: current_token TYPE REF TO lcl_excelom_exprh_lexer=>ts_token.
 
-    METHODS get_token
-      RETURNING VALUE(result) TYPE string.
+
 
     METHODS parse_expression
-      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr
       RAISING   lcx_excelom_expr_parser.
 
     METHODS parse_function_arguments
@@ -504,15 +568,9 @@ CLASS lcl_excelom_exprh_parser DEFINITION FINAL
 
     METHODS skip_spaces.
 
-    METHODS get_expression_from_group
-      IMPORTING  from         TYPE i
-                 to           TYPE i
-                 tokens       TYPE lcl_excelom_exprh_lexer=>tt_token
-      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
 
-    METHODS create_expression_from_token
-      IMPORTING token         TYPE lcl_excelom_exprh_lexer=>ts_token
-      RETURNING VALUE(result) TYPE REF TO lif_excelom_expr_expression.
+
+
 
     METHODS parse_expression_group
       IMPORTING group type REF TO lcl_excelom_exprh_group.
@@ -524,7 +582,27 @@ CLASS lcl_excelom_exprh_parser DEFINITION FINAL
       CHANGING !group TYPE REF TO lcl_excelom_exprh_group.
 
     METHODS parse_expression_group_4
-      IMPORTING !group TYPE REF TO lcl_excelom_exprh_group.
+      IMPORTING  group TYPE REF TO lcl_excelom_exprh_group.
+    METHODS get_expression_from_symbol_nam
+      IMPORTING
+        token_value   TYPE string
+      RETURNING
+        value(result) TYPE REF TO lif_excelom_expr.
+ENDCLASS.
+
+
+CLASS lcl_excelom_evaluation_context DEFINITION FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+
+    data containing_cell type ref to lcl_excelom_range READ-ONLY.
+
+    CLASS-METHODS create
+      IMPORTING containing_cell type ref to lcl_excelom_range
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_evaluation_context.
+
+  PRIVATE SECTION.
 ENDCLASS.
 
 
@@ -532,18 +610,33 @@ CLASS lcl_excelom_expr_array DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_array.
 ENDCLASS.
 
 
+CLASS lcl_excelom_expr_boolean DEFINITION FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_expr.
+
+    CLASS-METHODS create
+      IMPORTING boolean_value TYPE abap_bool
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_boolean.
+
+  PRIVATE SECTION.
+    DATA boolean_value TYPE abap_bool.
+endclass.
+
+
 CLASS lcl_excelom_expr_expressions DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    METHODS append IMPORTING expression TYPE REF TO lif_excelom_expr_expression.
+    METHODS append IMPORTING expression TYPE REF TO lif_excelom_expr.
 
     CLASS-METHODS create
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_expressions.
@@ -554,7 +647,7 @@ CLASS lcl_excelom_expr_function_call DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       IMPORTING !name         TYPE csequence
@@ -567,16 +660,16 @@ CLASS lcl_excelom_expr_mult DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
-      IMPORTING left_operand  TYPE REF TO lif_excelom_expr_expression
-                right_operand TYPE REF TO lif_excelom_expr_expression
+      IMPORTING left_operand  TYPE REF TO lif_excelom_expr
+                right_operand TYPE REF TO lif_excelom_expr
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_mult.
 
   PRIVATE SECTION.
-    DATA left_operand  TYPE REF TO lif_excelom_expr_expression.
-    DATA right_operand TYPE REF TO lif_excelom_expr_expression.
+    DATA left_operand  TYPE REF TO lif_excelom_expr.
+    DATA right_operand TYPE REF TO lif_excelom_expr.
 ENDCLASS.
 
 
@@ -584,7 +677,7 @@ CLASS lcl_excelom_expr_number DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       IMPORTING !number       TYPE f
@@ -618,16 +711,33 @@ CLASS lcl_excelom_expr_plus DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
-      IMPORTING left_operand  TYPE REF TO lif_excelom_expr_expression
-                right_operand TYPE REF TO lif_excelom_expr_expression
+      IMPORTING left_operand  TYPE REF TO lif_excelom_expr
+                right_operand TYPE REF TO lif_excelom_expr
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_plus.
 
   PRIVATE SECTION.
-    DATA left_operand  TYPE REF TO lif_excelom_expr_expression.
-    DATA right_operand TYPE REF TO lif_excelom_expr_expression.
+    DATA left_operand  TYPE REF TO lif_excelom_expr.
+    DATA right_operand TYPE REF TO lif_excelom_expr.
+ENDCLASS.
+
+
+CLASS lcl_excelom_expr_range DEFINITION FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_all_friends.
+    INTERFACES lif_excelom_expr.
+
+    CLASS-METHODS create
+      IMPORTING address_or_name TYPE string
+      RETURNING VALUE(result)   TYPE REF TO lcl_excelom_expr_range.
+
+  PRIVATE SECTION.
+    DATA _address_or_name TYPE string.
+*    DATA range TYPE REF TO lcl_excelom_range.
 ENDCLASS.
 
 
@@ -635,7 +745,7 @@ CLASS lcl_excelom_expr_string DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       IMPORTING !text         TYPE csequence
@@ -650,7 +760,7 @@ CLASS lcl_excelom_expr_sub_expr DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_sub_expr.
@@ -661,7 +771,7 @@ CLASS lcl_excelom_expr_table DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
-    INTERFACES lif_excelom_expr_expression.
+    INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
       IMPORTING table_name            TYPE csequence
@@ -682,38 +792,39 @@ CLASS lcl_excelom_cell_format DEFINITION FINAL
 ENDCLASS.
 
 
-CLASS lcl_excelom_formula2 DEFINITION FINAL
-  CREATE PRIVATE FRIENDS lif_excelom_all_friends.
-
-  PUBLIC SECTION.
-    INTERFACES lif_excelom_all_friends.
-
-    METHODS calculate.
-
-    CLASS-METHODS create
-      IMPORTING !range        TYPE REF TO lcl_excelom_range
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
-
-    METHODS set_value
-      IMPORTING !value TYPE string
-      RAISING   lcx_excelom_expr_parser.
-
-  PRIVATE SECTION.
-    DATA range       TYPE REF TO lcl_excelom_range.
-    DATA _expression TYPE REF TO lif_excelom_expr_expression.
-ENDCLASS.
+*CLASS lcl_excelom_formula2 DEFINITION FINAL
+*  CREATE PRIVATE FRIENDS lif_excelom_all_friends.
+*
+*  PUBLIC SECTION.
+*    INTERFACES lif_excelom_all_friends.
+*
+*    METHODS calculate.
+*
+*    CLASS-METHODS create
+*      IMPORTING !range        TYPE REF TO lcl_excelom_range
+*      RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
+*
+*    METHODS set_value
+*      IMPORTING !value TYPE string
+*      RAISING   lcx_excelom_expr_parser.
+*
+*  PRIVATE SECTION.
+*    DATA range       TYPE REF TO lcl_excelom_range.
+*    DATA _expression TYPE REF TO lif_excelom_expr.
+*ENDCLASS.
 
 
 CLASS lcl_excelom_range DEFINITION FINAL
   CREATE PRIVATE
   FRIENDS lif_excelom_all_friends.
-*          lcl_excelom_range_value
-*          lcl_excelom_result_array
-*          lcl_excelom_formula2.
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
-    INTERFACES lif_excelom_expr_expression.
+
+*    DATA value TYPE REF TO lif_excelom_result READ-ONLY.
+    DATA formula2 TYPE string READ-ONLY.
+    DATA parent TYPE REF TO lcl_excelom_worksheet READ-ONLY.
+    DATA application TYPE REF TO lcl_excelom_application READ-ONLY.
 
     METHODS calculate.
 
@@ -722,23 +833,26 @@ CLASS lcl_excelom_range DEFINITION FINAL
     "! @parameter cell2  | Optional    Variant Either a String that is a range reference or a Range object. Cell2 defines another extremity of the range returned by the property.
     "! @parameter result | .
     CLASS-METHODS create
-      IMPORTING cell1         TYPE REF TO lcl_excelom_range
+      IMPORTING worksheet     TYPE REF TO lcl_excelom_worksheet
+                cell1         TYPE REF TO lcl_excelom_range
                 cell2         TYPE REF TO lcl_excelom_range OPTIONAL
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
 
-    CLASS-METHODS create_from_address
+    CLASS-METHODS create_from_address_or_name
       IMPORTING address       TYPE clike
                 relative_to   TYPE REF TO lcl_excelom_worksheet
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
 
-    METHODS formula2
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_formula2.
+    METHODS set_formula2
+      IMPORTING value TYPE string
+      RAISING
+        lcx_excelom_expr_parser.
 
-    METHODS parent
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheet.
+    METHODS set_value
+      IMPORTING value TYPE REF TO lif_excelom_result.
 
     METHODS value
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range_value.
+      RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
 
   PRIVATE SECTION.
     TYPES:
@@ -754,14 +868,27 @@ CLASS lcl_excelom_range DEFINITION FINAL
         bottom_right TYPE ty_address_one_cell,
       END OF ty_address.
 
-    CLASS-METHODS decode_range_address
+    CLASS-METHODS convert_column_a_xfd_to_number
+      IMPORTING roman_letters TYPE string
+      RETURNING VALUE(result) TYPE i.
+
+    METHODS decode_range_address
+      IMPORTING address       TYPE string
+      RETURNING VALUE(result) TYPE ty_address.
+    METHODS _set_value
+      IMPORTING
+        value TYPE REF TO lif_excelom_result.
+
+    CLASS-METHODS decode_range_address_a1
       IMPORTING address       TYPE string
       RETURNING VALUE(result) TYPE ty_address.
 
-    DATA _value    TYPE REF TO lcl_excelom_range_value.
-    DATA _formula2 TYPE REF TO lcl_excelom_formula2.
-    DATA _address  TYPE ty_address.
-    DATA _parent   TYPE REF TO lcl_excelom_worksheet.
+    CLASS-METHODS decode_range_address_r1_c1
+      IMPORTING address       TYPE string
+      RETURNING VALUE(result) TYPE ty_address.
+
+    DATA _formula_expression TYPE REF TO lif_excelom_expr.
+    DATA _address            TYPE ty_address.
 ENDCLASS.
 
 
@@ -834,6 +961,26 @@ CLASS lcl_excelom_result_boolean DEFINITION FINAL
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_result.
+
+    CLASS-METHODS create
+      IMPORTING boolean_value TYPE abap_bool
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_result_boolean.
+
+  PRIVATE SECTION.
+    DATA boolean_value TYPE abap_bool.
+ENDCLASS.
+
+
+CLASS lcl_excelom_result_empty DEFINITION FINAL
+  CREATE PRIVATE.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_result.
+
+    CLASS-METHODS get_singleton
+        RETURNING VALUE(result) type ref to lcl_excelom_result_empty.
+  PRIVATE SECTION.
+    CLASS-DATA singleton type ref to lcl_excelom_result_empty.
 ENDCLASS.
 
 
@@ -881,6 +1028,7 @@ CLASS lcl_excelom_result_error DEFINITION FINAL
     CLASS-DATA name                       TYPE REF TO lcl_excelom_result_error READ-ONLY.
     CLASS-DATA null                       TYPE REF TO lcl_excelom_result_error READ-ONLY.
     CLASS-DATA num                        TYPE REF TO lcl_excelom_result_error READ-ONLY.
+    "! TODO #PYTHON! internal error number is not 2222, what is it?
     CLASS-DATA python                     TYPE REF TO lcl_excelom_result_error READ-ONLY.
     CLASS-DATA ref                        TYPE REF TO lcl_excelom_result_error READ-ONLY.
     CLASS-DATA spill                      TYPE REF TO lcl_excelom_result_error READ-ONLY.
@@ -954,12 +1102,13 @@ ENDCLASS.
 
 CLASS lcl_excelom_worksheet DEFINITION FINAL
   CREATE PRIVATE
-  FRIENDS lcl_excelom_range_value
-          lcl_excelom_range
-          lcl_excelom_formula2.
+  FRIENDS lif_excelom_all_friends.
 
   PUBLIC SECTION.
     TYPES ty_name TYPE string.
+
+    DATA application TYPE REF TO lcl_excelom_application READ-ONLY.
+    DATA parent TYPE REF TO lcl_excelom_workbook READ-ONLY.
 
     "! Worksheet.Calculate method (Excel).
     "! Calculates all open workbooks, a specific worksheet in a workbook, or a specified range of cells on a worksheet, as shown in the following table.
@@ -968,7 +1117,9 @@ CLASS lcl_excelom_worksheet DEFINITION FINAL
     "! https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.calculate(method)
     METHODS calculate.
 
-    CLASS-METHODS create RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheet.
+    CLASS-METHODS create
+     IMPORTING workbook TYPE REF TO lcl_excelom_workbook
+    RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheet.
 
     "! Worksheet.Range property. Returns a Range object that represents a cell or a range of cells.
     "! <p>expression.Range (Cell1, Cell2)</p>
@@ -994,6 +1145,7 @@ CLASS lcl_excelom_worksheet DEFINITION FINAL
 
   PRIVATE SECTION.
     TYPES ty_cell_type TYPE i.
+    TYPES ty_value_type TYPE i.
 
     CONSTANTS:
       "! Formula function TYPE. TYPE(0) gives 1. An empty cell is of type NUMBER but it's impossible
@@ -1008,6 +1160,23 @@ CLASS lcl_excelom_worksheet DEFINITION FINAL
         array         TYPE ty_cell_type VALUE 64,
         compound_data TYPE ty_cell_type VALUE 128,
       END OF c_excel_type.
+
+    CONSTANTS:
+      BEGIN OF c_value_type,
+        empty         TYPE ty_value_type VALUE 1,
+        number        TYPE ty_value_type VALUE 2,
+        text          TYPE ty_value_type VALUE 3,
+        "! Cell containing the value TRUE or FALSE.
+        boolean       TYPE ty_value_type VALUE 4,
+        error         TYPE ty_value_type VALUE 5,
+        compound_data TYPE ty_value_type VALUE 6,
+      END OF c_value_type.
+
+    CONSTANTS:
+      BEGIN OF c_boolean,
+        false TYPE f VALUE 0,
+        true  TYPE f VALUE -1,
+      END OF c_boolean.
 
     TYPES:
       BEGIN OF ts_cell,
@@ -1038,9 +1207,9 @@ CLASS lcl_excelom_worksheet DEFINITION FINAL
         format TYPE REF TO lcl_excelom_cell_format,
       END OF ts_cell.
     TYPES tt_cell TYPE HASHED TABLE OF ts_cell WITH UNIQUE KEY column row.
-    TYPES tt_formula TYPE STANDARD TABLE OF REF TO lcl_excelom_formula2 WITH EMPTY KEY.
+*    TYPES tt_formula TYPE STANDARD TABLE OF REF TO lif_excelom_formula2 WITH EMPTY KEY.
 
-    DATA formulas TYPE tt_formula.
+*    DATA formulas TYPE tt_formula.
     DATA _cells   TYPE tt_cell.
 ENDCLASS.
 
@@ -1049,15 +1218,17 @@ CLASS lcl_excelom_worksheets DEFINITION FRIENDS lif_excelom_all_friends.
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
 
+    DATA application TYPE REF TO lcl_excelom_application READ-ONLY.
+    DATA count       TYPE i                              READ-ONLY.
+    DATA workbook    TYPE REF TO lcl_excelom_workbook    READ-ONLY.
+
     CLASS-METHODS create
+      IMPORTING workbook      TYPE REF TO lcl_excelom_workbook
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheets.
 
     METHODS add
       IMPORTING !name         TYPE lcl_excelom_worksheet=>ty_name
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheet.
-
-    METHODS count
-      RETURNING VALUE(result) TYPE i.
 
     "!
     "! @parameter index  | Required    Variant The name or index number of the object.
@@ -1082,27 +1253,47 @@ CLASS lcl_excelom_workbook DEFINITION.
   PUBLIC SECTION.
     TYPES ty_name TYPE string.
 
+    DATA application TYPE REF TO lcl_excelom_application READ-ONLY.
+    DATA worksheets TYPE REF TO lcl_excelom_worksheets READ-ONLY.
+
     CLASS-METHODS create
+      IMPORTING !application  TYPE REF TO lcl_excelom_application
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
 
-    METHODS worksheets RETURNING VALUE(result) TYPE REF TO lcl_excelom_worksheets.
-
   PRIVATE SECTION.
-    DATA _worksheets TYPE REF TO lcl_excelom_worksheets.
 ENDCLASS.
 
 
-CLASS lcl_excelom DEFINITION FRIENDS lif_excelom_all_friends.
+CLASS lcl_excelom_application DEFINITION FRIENDS lif_excelom_all_friends.
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
 
-    CLASS-METHODS create RETURNING VALUE(result) TYPE REF TO lcl_excelom.
+    TYPES ty_calculation TYPE i.
+    TYPES ty_reference_style TYPE i.
 
-    METHODS workbooks RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
+    CONSTANTS:
+      BEGIN OF c_calculation,
+        automatic     TYPE ty_calculation VALUE -4105,
+        manual        TYPE ty_calculation VALUE -4135,
+        semiautomatic TYPE ty_calculation VALUE 2,
+      END OF c_calculation.
+
+    CONSTANTS:
+      BEGIN OF c_reference_style,
+        a1    TYPE ty_reference_style VALUE 1,
+        r1_c1 TYPE ty_reference_style VALUE -4150,
+      END OF c_reference_style.
+
+    DATA calculation     TYPE ty_calculation               VALUE c_calculation-automatic READ-ONLY.
+    DATA reference_style TYPE ty_reference_style           VALUE c_reference_style-a1    READ-ONLY.
+    DATA workbooks       TYPE REF TO lcl_excelom_workbooks                               READ-ONLY.
+
     METHODS calculate.
 
+    CLASS-METHODS create
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_application.
+
   PRIVATE SECTION.
-    DATA _workbooks TYPE REF TO lcl_excelom_workbooks.
 
     CLASS-METHODS type
       IMPORTING any_data_object TYPE any
@@ -1114,15 +1305,16 @@ CLASS lcl_excelom_workbooks DEFINITION FRIENDS lif_excelom_all_friends.
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
 
+    DATA application TYPE REF TO lcl_excelom_application READ-ONLY.
+    DATA count       TYPE i                              READ-ONLY.
+
     CLASS-METHODS create
+      IMPORTING application TYPE REF TO lcl_excelom_application
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbooks.
 
     METHODS add
       IMPORTING !name         TYPE lcl_excelom_workbook=>ty_name
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_workbook.
-
-    METHODS count
-      RETURNING VALUE(result) TYPE i.
 
     "!
     "! @parameter index  | Required    Variant The name or index number of the object.
@@ -1143,8 +1335,12 @@ CLASS lcl_excelom_workbooks DEFINITION FRIENDS lif_excelom_all_friends.
 ENDCLASS.
 
 
+
+
+
 CLASS lcl_excelom_cell_format IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1161,8 +1357,8 @@ ENDCLASS.
 
 CLASS lcl_excelom_exprh IMPLEMENTATION.
   METHOD evaluate_array_operands.
-    result-left_operand = left_operand->evaluate( ).
-    result-right_operand = right_operand->evaluate( ).
+    result-left_operand = left_operand->evaluate( context ).
+    result-right_operand = right_operand->evaluate( context ).
 
     CHECK result-left_operand->type = lif_excelom_result=>c_type-array
         OR result-right_operand->type = lif_excelom_result=>c_type-array.
@@ -1192,7 +1388,7 @@ CLASS lcl_excelom_exprh IMPLEMENTATION.
 *        endtry.
 
         DATA(target_array_result_one_cell) = cond #( when expression is bound
-                                             then expression->evaluate( )
+                                             then expression->evaluate( context )
                                              ELSE lcl_excelom_result_error=>na_not_applicable ).
 
         target_array->lif_excelom_result~set_cell_value(
@@ -1370,41 +1566,41 @@ CLASS lcl_excelom_exprh_lexer IMPLEMENTATION.
           ENDIF.
       ENDCASE.
 
-      CASE token-type.
-        WHEN '('.
-          parenthesis_level = parenthesis_level + 1.
-          INSERT VALUE #( level      = parenthesis_level
-                          from_token = token_number )
-                 INTO TABLE result-parenthesis_groups
-                 REFERENCE INTO current_parenthesis_group.
-        WHEN ','.
-          IF table_specification = abap_false.
-            INSERT VALUE #( level      = parenthesis_level + 1
-                            from_token = cond #( when current_parenthesis_group->last_subgroup_token = 0
-                                                 then current_parenthesis_group->from_token + 1
-                                                 else current_parenthesis_group->last_subgroup_token + 2 )
-                            to_token   = token_number - 1 )
-                   INTO TABLE result-parenthesis_groups.
-            current_parenthesis_group->last_subgroup_token = token_number - 1.
-          ENDIF.
-        WHEN ')'.
-          IF current_parenthesis_group->last_subgroup_token <> 0.
-            INSERT VALUE #( level      = parenthesis_level + 1
-                            from_token = current_parenthesis_group->last_subgroup_token + 2
-                            to_token   = token_number - 1 )
-                   INTO TABLE result-parenthesis_groups.
-          ENDIF.
-          current_parenthesis_group->last_subgroup_token = token_number - 1.
-          current_parenthesis_group->to_token = token_number.
-          parenthesis_level = parenthesis_level - 1.
-          current_parenthesis_group = REF #( result-parenthesis_groups[ level = parenthesis_level ] OPTIONAL ).
-        WHEN '['.
-          table_specification = abap_true.
-        WHEN ']'.
-          table_specification = abap_false.
-      ENDCASE.
+*      CASE token-type.
+*        WHEN '('.
+*          parenthesis_level = parenthesis_level + 1.
+*          INSERT VALUE #( level      = parenthesis_level
+*                          from_token = token_number )
+*                 INTO TABLE result-parenthesis_groups
+*                 REFERENCE INTO current_parenthesis_group.
+*        WHEN ','.
+*          IF table_specification = abap_false.
+*            INSERT VALUE #( level      = parenthesis_level + 1
+*                            from_token = cond #( when current_parenthesis_group->last_subgroup_token = 0
+*                                                 then current_parenthesis_group->from_token + 1
+*                                                 else current_parenthesis_group->last_subgroup_token + 2 )
+*                            to_token   = token_number - 1 )
+*                   INTO TABLE result-parenthesis_groups.
+*            current_parenthesis_group->last_subgroup_token = token_number - 1.
+*          ENDIF.
+*        WHEN ')'.
+*          IF current_parenthesis_group->last_subgroup_token <> 0.
+*            INSERT VALUE #( level      = parenthesis_level + 1
+*                            from_token = current_parenthesis_group->last_subgroup_token + 2
+*                            to_token   = token_number - 1 )
+*                   INTO TABLE result-parenthesis_groups.
+*          ENDIF.
+*          current_parenthesis_group->last_subgroup_token = token_number - 1.
+*          current_parenthesis_group->to_token = token_number.
+*          parenthesis_level = parenthesis_level - 1.
+*          current_parenthesis_group = REF #( result-parenthesis_groups[ level = parenthesis_level ] OPTIONAL ).
+*        WHEN '['.
+*          table_specification = abap_true.
+*        WHEN ']'.
+*          table_specification = abap_false.
+*      ENDCASE.
 
-      INSERT token INTO TABLE result-tokens.
+      INSERT token INTO TABLE result. "-tokens.
       token_number = token_number + 1.
     ENDLOOP.
   ENDMETHOD.
@@ -1445,6 +1641,10 @@ CLASS lcl_excelom_exprh_group IMPLEMENTATION.
     items[ index ]-operator = operator.
   ENDMETHOD.
 
+  METHOD set_item_priority.
+    items[ index ]-priority = priority.
+  ENDMETHOD.
+
   METHOD set_operator.
     me->operator = operator.
   ENDMETHOD.
@@ -1452,38 +1652,31 @@ ENDCLASS.
 
 
 CLASS lcl_excelom_exprh_operator IMPLEMENTATION.
-
   METHOD class_constructor.
-    TYPES tt_operator_handler TYPE STANDARD TABLE OF REF TO lcl_excelom_exprh_operator WITH EMPTY KEY.
-
-    plus = create( name                     = '+'
-                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) )
-                   priority                 = 6 ).
-    multiply = create( name                     = '*'
-                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) )
-                   priority                 = 5 ).
-    operators = VALUE tt_operator( FOR <operator> IN VALUE tt_operator_handler( ( plus ) ( multiply ) )
-                                   ( name    = <operator>->name
-                                     handler = <operator> ) ).
-
-*        ( name = ':'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'range A1:A2 or A1:A2:A2' )
-*        ( name = ` `  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'intersection A1 A2' )
-*        ( name = ','  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 1 desc = 'union A1,A2' )
-*        ( name = '-'  operand_position_offsets = value #( ( +1 ) )        priority = 2 desc = '-1' )
-*        ( name = '+'  operand_position_offsets = value #( ( +1 ) )        priority = 2 desc = '+1' )
-*        ( name = '%'  operand_position_offsets = value #( ( -1 ) )        priority = 3 desc = 'percent e.g. 10%' )
-*        ( name = '^'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 4 desc = 'exponent 2^8' )
-*        ( name = '*'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 5 desc = '2*2' )
-*        ( name = '/'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 5 desc = '2/2' )
-*        ( name = '+'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 6 desc = '2+2' )
-*        ( name = '-'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 6 desc = '2-2' )
-*        ( name = '&'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 7 desc = 'concatenate "A"&"B"' )
-*        ( name = '='  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1=1' )
-*        ( name = '<'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<1' )
-*        ( name = '>'  operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>1' )
-*        ( name = '<=' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<=1' )
-*        ( name = '>=' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>=1' )
-*        ( name = '<>' operand_position_offsets = value #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<>1' ) ).
+    LOOP AT VALUE tt_operator(
+        ( name = ':'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 1 desc = 'range A1:A2 or A1:A2:A2' )
+        ( name = ` `                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 1 desc = 'intersection A1 A2' )
+        ( name = ','                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 1 desc = 'union A1,A2' )
+        ( name = '-' unary = abap_true operand_position_offsets = VALUE #( ( +1 ) )        priority = 2 desc = '-1' )
+        ( name = '+' unary = abap_true operand_position_offsets = VALUE #( ( +1 ) )        priority = 2 desc = '+1' )
+        ( name = '%'                   operand_position_offsets = VALUE #( ( -1 ) )        priority = 3 desc = 'percent e.g. 10%' )
+        ( name = '^'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 4 desc = 'exponent 2^8' )
+        ( name = '*'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 5 desc = '2*2' )
+        ( name = '/'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 5 desc = '2/2' )
+        ( name = '+'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 6 desc = '2+2' )
+        ( name = '-'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 6 desc = '2-2' )
+        ( name = '&'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 7 desc = 'concatenate "A"&"B"' )
+        ( name = '='                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1=1' )
+        ( name = '<'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<1' )
+        ( name = '>'                   operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>1' )
+        ( name = '<='                  operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<=1' )
+        ( name = '>='                  operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1>=1' )
+        ( name = '<>'                  operand_position_offsets = VALUE #( ( -1 ) ( +1 ) ) priority = 8 desc = 'A1<>1' ) )
+         REFERENCE INTO DATA(operator).
+      create( name                     = operator->name
+              operand_position_offsets = operator->operand_position_offsets
+              priority                 = operator->priority ).
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD create.
@@ -1491,6 +1684,9 @@ CLASS lcl_excelom_exprh_operator IMPLEMENTATION.
     result->name = name.
     result->operand_position_offsets = operand_position_offsets.
     result->priority = priority.
+    INSERT VALUE #( name    = name
+                    handler = result )
+           INTO TABLE operators.
   ENDMETHOD.
 
   METHOD create_expression.
@@ -1507,7 +1703,11 @@ CLASS lcl_excelom_exprh_operator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get.
-    result = operators[ name = operator ]-handler.
+    result = VALUE #( operators[ name  = operator
+                                 unary = unary ]-handler OPTIONAL ).
+    IF result IS NOT BOUND.
+      ASSERT 1 = 1. " Debug helper to set a break-point
+    ENDIF.
   ENDMETHOD.
 
   METHOD get_operand_position_offsets.
@@ -1526,215 +1726,78 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
 *    result->formula_cell = formula_cell.
   ENDMETHOD.
 
-  METHOD create_expression_from_token.
-    CASE token-type.
-      WHEN lcl_excelom_exprh_lexer=>c_type-number.
-        " NB: the number 0.5 is represented in the formulas with the leading 0 (i.e. "0.5")
-        result = lcl_excelom_expr_number=>create( EXACT #( token-value ) ).
-      WHEN lcl_excelom_exprh_lexer=>c_type-symbol_name.
-        " The word is a cell reference, name of named range, constant (TRUE, FALSE)
-*        IF token-value CP 'true' OR token-value CP 'false'.
-*          result = lcl_excelom_expr_boolean=>create( token-value ).
-*        ELSE.
-*          result = lcl_excelom_expr_range=>create( token-value ).
-*        ENDIF.
-      WHEN lcl_excelom_exprh_lexer=>c_type-text_literal.
-        " Remove double quotes e.g. "say ""hello""" -> say "hello"
-        result = lcl_excelom_expr_string=>create( replace( val   = token-value
-                                                           regex = '^"|(")"|"$'
-                                                           with  = '$1'
-                                                           occ   = 0 ) ).
-*        WHEN lcl_excelom_expr_lexer=>c_type-parenthesis_open.
-*          " either a sub-expression like (1+1)
-*          " or a union of ranges like (A1:A2,B1:B2) (which is equivalent to A1:B2)
-*          " or an intersection of ranges like (A1:B2 B2:C3) (which is equivalent to B2)
-**            data sub_expressions type STANDARD TABLE OF ref to lif_expression with EMPTY KEY.
-**            while current_token_index < lines( tokens ).
-**            current_token_index = current_token_index + 1.
-**        if tokens[ current_token_index ]-type = ')'.
-**          current_token_index = current_token_index + 1.
-**          exit.
-**        endif.
-**            data(sub_expression) = parse_expression( ).
-**            append sub_expression to sub_expressions.
-**            ENDWHILE.
-**          append lcl_sub_expression=>create( ) to table_expressions.
-*        WHEN '['.
-*          " table1[
-*          " should not happen because it's processed with the previous word
-*          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
-*        WHEN '{'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*        WHEN ')'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*        WHEN ']'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*        WHEN '}'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-**          result = lcl_array=>create( ).
-*        WHEN ` `.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*        WHEN ':'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*        WHEN ','.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*          " end of expression
-*          EXIT.
-*        WHEN ';'.
-*          RAISE EXCEPTION TYPE lcx_excelom_to_do.
-*          " end of expression
-*          EXIT.
-*        WHEN lcl_excelom_expr_lexer=>c_type-function_name.
-*          current_token_index = current_token_index + 1.
-*          DATA(arguments) = parse_function_arguments( ).
-*          expression = lcl_excelom_expr_function_call=>create( name      = token->value
-*                                                               arguments = arguments ).
-*        WHEN lcl_excelom_expr_lexer=>c_type-operator.
-*          expression = VALUE #( ).
-*          current_token_index = current_token_index + 1.
-*          CASE token->value.
-*            WHEN '+'.
-*              IF current_token_index = start_token_index OR tokens[ current_token_index - 1 ]-type <> 'W'.
-*                " append lcl_unary_plus=>create( ) to table_expressions.
-*              ELSE.
-*                APPEND value #( lcl_plus=>create( ) TO table_expressions.
-*              ENDIF.
-*          ENDCASE.
-*        WHEN lcl_excelom_expr_lexer=>c_type-table_name.
-*          DATA(row_column_specifiers) = VALUE string_table( ).
-*          LOOP AT tokens REFERENCE INTO DATA(token_2)
-*               FROM current_token_index.
-*            current_token_index = current_token_index + 1.
-*            CASE token_2->type.
-*              WHEN '['.
-*                IF token_2->value <> '['.
-*                  APPEND token_2->value TO row_column_specifiers.
-*                ENDIF.
-*              WHEN ']'.
-*                EXIT.
-*            ENDCASE.
-*          ENDLOOP.
-*          expression = lcl_excelom_expr_table=>create( table_name            = token->value
-*                                                       row_column_specifiers = row_column_specifiers ).
-*        WHEN OTHERS.
-*          RAISE EXCEPTION TYPE lcx_excelom_unexpected.
-    ENDCASE.
-  ENDMETHOD.
-
-  METHOD get_expression_from_group.
-    TYPES to_expression TYPE REF TO lif_excelom_expr_expression.
-    TYPES:
-      BEGIN OF ts_work,
-        position   TYPE sytabix,
-        token      TYPE REF TO lcl_excelom_exprh_lexer=>ts_token,
-        expression TYPE REF TO lif_excelom_expr_expression,
-        operator   TYPE REF TO lcl_excelom_exprh_operator,
-        priority   TYPE i,
-      END OF ts_work.
-    TYPES tt_work TYPE SORTED TABLE OF ts_work WITH non-unique KEY position
-                    with non-UNIQUE sorted key by_priority COMPONENTS priority position.
-    TYPES tt_operand_positions TYPE STANDARD TABLE OF i WITH EMPTY KEY.
-    DATA priorities TYPE SORTED TABLE OF i WITH UNIQUE KEY table_line.
-
-    DATA(work_table) = VALUE tt_work( ).
-    DATA(token_index) = from.
-    WHILE token_index <= to.
-      DATA(token) = REF #( tokens[ token_index ] ).
-      DATA(operator) = COND #( WHEN token->type = lcl_excelom_exprh_lexer=>c_type-operator
-                               THEN lcl_excelom_exprh_operator=>get( token->value ) ).
-      INSERT VALUE #( position = token_index
-                      token    = token
-                      operator = operator
-                      priority = COND #( WHEN operator IS BOUND
-                                         THEN operator->get_priority( ) ) )
-             INTO TABLE work_table
-             REFERENCE INTO DATA(work_line).
-      IF work_line->priority <> 0.
-        INSERT work_line->priority INTO TABLE priorities.
-      ENDIF.
-      DATA(parsed_group) = REF #( parsed_groups[ from_token = token_index ] OPTIONAL ).
-      IF parsed_group IS BOUND.
-        work_line->expression = parsed_group->expression.
-        token_index = parsed_group->to_token.
-      ELSE.
-        work_line->expression = create_expression_from_token( token = token->* ).
-      ENDIF.
-      token_index = token_index + 1.
-    ENDWHILE.
-
-    " Process operators with priority 1 first, then 2, etc.
-    " The priority 0 corresponds to functions, tables, boolean values, numeric literals and text literals.
-    LOOP AT priorities INTO DATA(priority).
-      LOOP AT work_table REFERENCE INTO work_line
-           USING KEY by_priority
-           WHERE priority = priority.
-        DATA(current_index) = sy-tabix.
-        CASE work_line->token->type.
-          WHEN lcl_excelom_exprh_lexer=>c_type-operator.
-            DATA(operand_position_offsets) = work_line->operator->get_operand_position_offsets( ).
-            SORT operand_position_offsets BY table_line.
-            work_line->expression = work_line->operator->create_expression(
-                                        operands = VALUE #(
-                                            FOR <operand_position_offset> IN operand_position_offsets
-                                            ( work_table[ position = current_index + <operand_position_offset> ]-expression ) ) ).
-            DATA(positions_of_operands_to_delet) = VALUE tt_operand_positions(
-                                                             FOR <operand_position_offset> IN operand_position_offsets
-                                                             ( current_index + <operand_position_offset> ) ).
-            SORT positions_of_operands_to_delet BY table_line DESCENDING.
-            LOOP AT positions_of_operands_to_delet INTO DATA(position).
-*              DELETE work_table INDEX position.
-              DELETE work_table WHERE position = position.
-            ENDLOOP.
-          WHEN lcl_excelom_exprh_lexer=>c_type-function_name.
-          WHEN lcl_excelom_exprh_lexer=>c_type-table_name.
-        ENDCASE.
-      ENDLOOP.
-    ENDLOOP.
-
-    " Remove parenthesis
-    DELETE work_table WHERE expression IS NOT BOUND.
-
-    result = work_table[ 1 ]-expression.
-  ENDMETHOD.
-
-  METHOD get_token.
+  METHOD get_expression_from_symbol_nam.
+    IF token_value cp 'true'.
+      result = lcl_excelom_expr_boolean=>create( boolean_value = abap_true ).
+    elseif token_value cp 'false'.
+      result = lcl_excelom_expr_boolean=>create( abap_true ).
+    else.
+      result = lcl_excelom_expr_range=>create( token_value ).
+    endif.
   ENDMETHOD.
 
   METHOD parse.
     current_token_index = 1.
     me->tokens             = tokens.
-    me->parenthesis_groups = parenthesis_groups.
     result = parse_expression( ).
+  ENDMETHOD.
+
+  METHOD parse_expression.
+
+    " Determine the groups for the parentheses.
+    DATA(initial_group) = lcl_excelom_exprh_group=>create( type = '(' ).
+    current_token_index = 0.
+    previous_token_type = ' '.
+    parse_expression_group( group = initial_group ).
+
+    " Determine the groups for the operators.
+    parse_expression_group_2( group = initial_group ).
+
+    " Remove useless groups of one item.
+    parse_expression_group_3( CHANGING group = initial_group ).
+
+    " Determine the expressions for each group.
+    parse_expression_group_4( group = initial_group ).
+
+    result = initial_group->expression.
   ENDMETHOD.
 
   METHOD parse_expression_group.
     WHILE current_token_index < lines( tokens ).
       current_token_index = current_token_index + 1.
-      DATA(token) = REF #( tokens[ current_token_index ] ).
-      DATA(ls_item) = VALUE lcl_excelom_exprh_group=>ts_item( token = token ).
-      CASE token->type.
+      current_token = REF #( tokens[ current_token_index ] ).
+      DATA(ls_item) = VALUE lcl_excelom_exprh_group=>ts_item( token = current_token ).
+      CASE current_token->type.
         WHEN '('.
           ls_item-group = lcl_excelom_exprh_group=>create( '(' ).
+          previous_token_type = '('.
           parse_expression_group( group = ls_item-group ).
         WHEN ')'.
+          previous_token_type = ')'.
           RETURN.
+        WHEN 'O'.
+          ls_item-operator = lcl_excelom_exprh_operator=>get( operator = current_token->value
+                                                              unary    = SWITCH #( previous_token_type
+                                                                                   WHEN '(' OR ' ' OR 'O'
+                                                                                   THEN abap_true ) ).
       ENDCASE.
       group->append( ls_item ).
+      previous_token_type = current_token->type.
     ENDWHILE.
   ENDMETHOD.
 
   METHOD parse_expression_group_2.
-    TYPES to_expression TYPE REF TO lif_excelom_expr_expression.
+    TYPES to_expression TYPE REF TO lif_excelom_expr.
     TYPES:
       BEGIN OF ts_work,
         position   TYPE sytabix,
         token      TYPE REF TO lcl_excelom_exprh_lexer=>ts_token,
-        expression TYPE REF TO lif_excelom_expr_expression,
+        expression TYPE REF TO lif_excelom_expr,
         operator   TYPE REF TO lcl_excelom_exprh_operator,
         priority   TYPE i,
       END OF ts_work.
-    TYPES tt_work TYPE SORTED TABLE OF ts_work WITH non-unique KEY position
-                    with non-UNIQUE sorted key by_priority COMPONENTS priority position.
+    TYPES tt_work TYPE SORTED TABLE OF ts_work WITH NON-UNIQUE KEY position
+                    WITH NON-UNIQUE SORTED KEY by_priority COMPONENTS priority position.
     TYPES tt_operand_positions TYPE STANDARD TABLE OF i WITH EMPTY KEY.
     DATA priorities TYPE SORTED TABLE OF i WITH UNIQUE KEY table_line.
     DATA item_index TYPE syst-tabix.
@@ -1748,17 +1811,19 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
     LOOP AT group->items REFERENCE INTO item
         WHERE token->type = lcl_excelom_exprh_lexer=>c_type-operator.
       item_index = sy-tabix.
-      group->set_item_operator( index    = item_index
-                                operator = lcl_excelom_exprh_operator=>get( item->token->value ) ).
-      INSERT item->operator->get_priority( ) INTO TABLE priorities.
+      DATA(priority) = item->operator->get_priority( ).
+      group->set_item_priority( index    = item_index
+                                priority = priority ).
+      INSERT priority INTO TABLE priorities.
     ENDLOOP.
 
     " Process operators with priority 1 first, then 2, etc.
     " The priority 0 corresponds to functions, tables, boolean values, numeric literals and text literals.
-    LOOP AT priorities INTO DATA(priority).
+    LOOP AT priorities INTO priority.
       LOOP AT group->items REFERENCE INTO item
            WHERE     token       IS BOUND
-                 AND token->type  = lcl_excelom_exprh_lexer=>c_type-operator.
+                 AND token->type  = lcl_excelom_exprh_lexer=>c_type-operator
+                 AND priority     = priority.
 
         item_index = sy-tabix.
         DATA(operand_position_offsets) = item->operator->get_operand_position_offsets( ).
@@ -1801,7 +1866,7 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD parse_expression_group_4.
-    TYPES to_expression TYPE REF TO lif_excelom_expr_expression.
+    TYPES to_expression TYPE REF TO lif_excelom_expr.
 
     LOOP AT group->items REFERENCE INTO DATA(item).
       DATA(item_index) = sy-tabix.
@@ -1822,7 +1887,11 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
                                      WHEN lcl_excelom_exprh_lexer=>c_type-text_literal THEN
                                        lcl_excelom_expr_string=>create( item->token->value )
                                      WHEN lcl_excelom_exprh_lexer=>c_type-number THEN
-                                       lcl_excelom_expr_number=>create( CONV #( item->token->value ) ) ).
+                                       lcl_excelom_expr_number=>create( CONV #( item->token->value ) )
+                                     WHEN lcl_excelom_exprh_lexer=>c_type-symbol_name THEN
+                                       " range address, range name, boolean true/false
+                                       get_expression_from_symbol_nam( item->token->value )
+                                     ELSE THROW lcx_excelom_to_do( ) ).
         group->set_item_expression( index      = item_index
                                     expression = expression ).
       ENDIF.
@@ -1831,52 +1900,6 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
       group->set_expression( group->operator->create_expression( operands = VALUE #( FOR <item> IN group->items
                                                                                      ( <item>-expression ) ) ) ).
     ENDIF.
-  ENDMETHOD.
-
-  METHOD parse_expression.
-
-    " Determine the groups for the parentheses.
-    DATA(initial_group) = lcl_excelom_exprh_group=>create( type = '(' ).
-    current_token_index = 0.
-    parse_expression_group( group = initial_group ).
-
-    " Determine the groups for the operators.
-    parse_expression_group_2( group = initial_group ).
-
-    " Remove useless groups of one item.
-    parse_expression_group_3( CHANGING group = initial_group ).
-
-    " Determine the expressions for each group.
-    parse_expression_group_4( group = initial_group ).
-
-    " There should be one left.
-    result = initial_group->expression.
-
-*    SORT parenthesis_groups BY level      DESCENDING
-*                               from_token ASCENDING.
-*
-*    IF NOT line_exists( parenthesis_groups[ from_token = 1
-*                                            to_token   = lines( tokens ) ] ).
-*      INSERT VALUE #( level      = 999
-*                      from_token = 1
-*                      to_token   = lines( tokens ) )
-*             INTO TABLE parenthesis_groups.
-*    ENDIF.
-*
-*    LOOP AT parenthesis_groups REFERENCE INTO data(parenthesis_group).
-*      DATA(expression) = get_expression_from_group( from   = parenthesis_group->from_token
-*                                                    to     = parenthesis_group->to_token
-*                                                    tokens = tokens ).
-*
-*    ENDLOOP.
-*    result = get_expression_from_group( from   = 1
-*                                        to     = lines( tokens )
-*                                        tokens = tokens ).
-**    DATA(expression_parts) = get_flat_expression_parts( ).
-**
-**    IF lines( expression_parts ) = 1.
-**      result = expression_parts[ 1 ]-o_expression.
-**    ENDIF.
   ENDMETHOD.
 
   METHOD parse_function_arguments.
@@ -1897,25 +1920,52 @@ CLASS lcl_excelom_exprh_parser IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD parse_tokens_up_to.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD skip_spaces.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_evaluation_context IMPLEMENTATION.
+  METHOD create.
+    result = NEW lcl_excelom_evaluation_context( ).
+    result->containing_cell = containing_cell.
   ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_expr_array IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
-
+  METHOD lif_excelom_expr~evaluate.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
+
+
+class lcl_excelom_expr_boolean implementation.
+  METHOD create.
+    result = new lcl_excelom_expr_boolean( ).
+    result->boolean_value = boolean_value.
+  ENDMETHOD.
+
+  method lif_excelom_expr~evaluate.
+    result = lcl_excelom_result_boolean=>create( boolean_value ).
+  endmethod.
+
+  method lif_excelom_expr~is_equal.
+    raise EXCEPTION type lcx_excelom_to_do.
+  endmethod.
+endclass.
 
 
 CLASS lcl_excelom_expr_expressions IMPLEMENTATION.
@@ -1924,6 +1974,7 @@ CLASS lcl_excelom_expr_expressions IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD append.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1933,15 +1984,16 @@ CLASS lcl_excelom_expr_function_call IMPLEMENTATION.
     " TODO: parameter NAME is never used (ABAP cleaner)
     " TODO: parameter ARGUMENTS is never used (ABAP cleaner)
 
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
     result = NEW lcl_excelom_expr_function_call( ).
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
-
+  METHOD lif_excelom_expr~evaluate.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1951,12 +2003,12 @@ CLASS lcl_excelom_expr_mult IMPLEMENTATION.
     result = NEW lcl_excelom_expr_mult( ).
     result->left_operand  = left_operand.
     result->right_operand = right_operand.
-    result->lif_excelom_expr_expression~type = lif_excelom_expr_expression=>c_type-operation_mult.
+    result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation_mult.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
+  METHOD lif_excelom_expr~is_equal.
     IF     expression       IS BOUND
-       AND expression->type  = lif_excelom_expr_expression=>c_type-operation_mult
+       AND expression->type  = lif_excelom_expr=>c_type-operation_mult
        AND left_operand->is_equal( CAST lcl_excelom_expr_mult( expression )->left_operand )
        AND right_operand->is_equal( CAST lcl_excelom_expr_mult( expression )->right_operand ).
       result = abap_true.
@@ -1965,8 +2017,9 @@ CLASS lcl_excelom_expr_mult IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
+  METHOD lif_excelom_expr~evaluate.
     DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands( expression    = me
+                                                                         context       = context
                                                                          left_operand  = left_operand
                                                                          right_operand = right_operand ).
     IF array_evaluation-result IS BOUND.
@@ -1976,7 +2029,7 @@ CLASS lcl_excelom_expr_mult IMPLEMENTATION.
          AND array_evaluation-right_operand->type = lif_excelom_result=>c_type-number.
         result = lcl_excelom_result_number=>create(
                      CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( )
-                      * CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( ) ).
+                      * CAST lcl_excelom_result_number( array_evaluation-right_operand )->get_number( ) ).
       ELSE.
         RAISE EXCEPTION TYPE lcx_excelom_to_do.
       ENDIF.
@@ -1989,11 +2042,11 @@ CLASS lcl_excelom_expr_number IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_number( ).
     result->number = number.
-    result->lif_excelom_expr_expression~type = lif_excelom_expr_expression=>c_type-number.
+    result->lif_excelom_expr~type = lif_excelom_expr=>c_type-number.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-    IF     expression->type = lif_excelom_expr_expression=>c_type-number
+  METHOD lif_excelom_expr~is_equal.
+    IF     expression->type = lif_excelom_expr=>c_type-number
        AND number           = CAST lcl_excelom_expr_number( expression )->number.
       result = abap_true.
     ELSE.
@@ -2001,7 +2054,7 @@ CLASS lcl_excelom_expr_number IMPLEMENTATION.
     endif.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
+  METHOD lif_excelom_expr~evaluate.
     result = lcl_excelom_result_number=>create( number ).
   ENDMETHOD.
 ENDCLASS.
@@ -2036,12 +2089,12 @@ CLASS lcl_excelom_expr_plus IMPLEMENTATION.
     result = NEW lcl_excelom_expr_plus( ).
     result->left_operand  = left_operand.
     result->right_operand = right_operand.
-    result->lif_excelom_expr_expression~type = lif_excelom_expr_expression=>c_type-operation_plus.
+    result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation_plus.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
+  METHOD lif_excelom_expr~is_equal.
     IF     expression IS BOUND
-       AND expression->type = lif_excelom_expr_expression=>c_type-operation_plus
+       AND expression->type = lif_excelom_expr=>c_type-operation_plus
        AND left_operand->is_equal( CAST lcl_excelom_expr_plus( expression )->left_operand )
        AND right_operand->is_equal( CAST lcl_excelom_expr_plus( expression )->right_operand ).
       result = abap_true.
@@ -2050,8 +2103,9 @@ CLASS lcl_excelom_expr_plus IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
+  METHOD lif_excelom_expr~evaluate.
     DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands( expression    = me
+                                                                         context       = context
                                                                          left_operand  = left_operand
                                                                          right_operand = right_operand ).
     IF array_evaluation-result IS BOUND.
@@ -2061,11 +2115,29 @@ CLASS lcl_excelom_expr_plus IMPLEMENTATION.
          AND array_evaluation-right_operand->type = lif_excelom_result=>c_type-number.
         result = lcl_excelom_result_number=>create(
                      CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( )
-                      + CAST lcl_excelom_result_number( array_evaluation-left_operand )->get_number( ) ).
+                      + CAST lcl_excelom_result_number( array_evaluation-right_operand )->get_number( ) ).
       ELSE.
         RAISE EXCEPTION TYPE lcx_excelom_to_do.
       ENDIF.
     ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_expr_range IMPLEMENTATION.
+  METHOD create.
+    result = NEW lcl_excelom_expr_range( ).
+    result->_address_or_name = address_or_name.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~evaluate.
+    DATA(range) = lcl_excelom_range=>create_from_address_or_name( address     = _address_or_name
+                                                                  relative_to = context->containing_cell->parent ).
+    result = range->value( ).
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -2076,167 +2148,434 @@ CLASS lcl_excelom_expr_string IMPLEMENTATION.
     result->text = text.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
-
+  METHOD lif_excelom_expr~evaluate.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_expr_sub_expr IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
-
+  METHOD lif_excelom_expr~evaluate.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_expr_table IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~is_equal.
-
+  METHOD lif_excelom_expr~is_equal.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
-  METHOD lif_excelom_expr_expression~evaluate.
-
+  METHOD lif_excelom_expr~evaluate.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
 
-CLASS lcl_excelom_formula2 IMPLEMENTATION.
-  METHOD calculate.
-    _expression->evaluate( ).
-  ENDMETHOD.
-
-  METHOD create.
-    result = NEW lcl_excelom_formula2( ).
-    result->range = range.
-    DATA(worksheet) = range->_parent.
-    INSERT result INTO TABLE worksheet->formulas.
-  ENDMETHOD.
-
-  METHOD set_value.
-*    DATA(lexer) = lcl_excelom_expr_lexer=>create( ).
+*CLASS lcl_excelom_formula2 IMPLEMENTATION.
+*  METHOD calculate.
+*    _expression->evaluate( ).
+*  ENDMETHOD.
+*
+*  METHOD create.
+*    result = NEW lcl_excelom_formula2( ).
+*    result->range = range.
+*    DATA(worksheet) = range->parent.
+*    INSERT result INTO TABLE worksheet->formulas.
+*  ENDMETHOD.
+*
+*  METHOD set_value.
+*    IF    value                  IS INITIAL
+*       OR substring( val = value
+*                     len = 1 )    = '='.
+*      " Formula error if empty value or "=" at the beginning of the formula
+*      RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*    ENDIF.
+*    DATA(lexer) = lcl_excelom_exprh_lexer=>create( ).
 *    DATA(lexer_tokens) = lexer->lexe( value ).
-*    IF lexer_tokens IS INITIAL.
-*      RETURN.
-*    ENDIF.
-*    IF lexer_tokens[ 1 ]-value = '='.
-*      DELETE lexer_tokens INDEX 1.
-*    ENDIF.
-*    DATA(parser) = lcl_excelom_expr_parser=>create( )."range ).
+*    DATA(parser) = lcl_excelom_exprh_parser=>create( ).
 *    _expression = parser->parse( lexer_tokens ).
-  ENDMETHOD.
-ENDCLASS.
+*  ENDMETHOD.
+*ENDCLASS.
 
 
 CLASS lcl_excelom_range IMPLEMENTATION.
+  METHOD calculate.
+    data(context) = lcl_excelom_evaluation_context=>create( containing_cell = me ).
+    _formula_expression->evaluate( context ).
+  ENDMETHOD.
+
+  METHOD convert_column_a_xfd_to_number.
+    DATA(offset) = 0.
+    WHILE offset < strlen( roman_letters ).
+      FIND roman_letters+offset(1) IN sy-abcde MATCH OFFSET DATA(offset_a_to_z).
+      result = ( result * 26 ) + offset_a_to_z + 1.
+      IF result > 16384.
+        raise EXCEPTION TYPE lcx_excelom_to_do.
+      ENDIF.
+      offset = offset + 1.
+    ENDWHILE.
+  ENDMETHOD.
+
   METHOD create.
     IF cell2 IS INITIAL.
       result = cell1.
     ELSE.
       result = NEW lcl_excelom_range( ).
-      result->_address = VALUE #( top_left     = VALUE #( column = nmin( val1 = cell1->_address-top_left-column
-                                                                         val2 = cell2->_address-top_left-column )
-                                                          row    = nmin( val1 = cell1->_address-top_left-column
-                                                                         val2 = cell2->_address-top_left-column ) )
-                                  bottom_right = VALUE #( column = nmax( val1 = cell1->_address-top_left-column
-                                                                         val2 = cell2->_address-top_left-column )
-                                                          row    = nmax( val1 = cell1->_address-top_left-column
-                                                                         val2 = cell2->_address-top_left-column ) ) ).
+      result->application = worksheet->application.
+      result->_address = VALUE #( top_left     = VALUE #( column = nmin( val1 = cell1->_address-bottom_right-column
+                                                                         val2 = cell2->_address-bottom_right-column )
+                                                          row    = nmin( val1 = cell1->_address-bottom_right-column
+                                                                         val2 = cell2->_address-bottom_right-column ) )
+                                  bottom_right = VALUE #( column = nmax( val1 = cell1->_address-bottom_right-column
+                                                                         val2 = cell2->_address-bottom_right-column )
+                                                          row    = nmax( val1 = cell1->_address-bottom_right-column
+                                                                         val2 = cell2->_address-bottom_right-column ) ) ).
     ENDIF.
   ENDMETHOD.
 
-  METHOD create_from_address.
+  METHOD create_from_address_or_name.
     result = NEW lcl_excelom_range( ).
-    result->_parent  = relative_to.
-    result->_address = decode_range_address( address ).
+    result->parent  = relative_to.
+    result->application = relative_to->application.
+    result->_address = result->decode_range_address( address ).
   ENDMETHOD.
 
   METHOD decode_range_address.
-    " A1 (relative column and row)
-    " $A1 (absolute column, relative column)
-    " A$1
-    " $A$1
-    " A1:A2
-    " $A$A
-    " A:A
-    " 1:1
-    " Sheet1!A1
-    " 'Sheet 1'!A1
-    " '[C:\workbook.xlsx]'!NAME' (workbook absolute path / name global scope)
-    " '[workbook.xlsx]Sheet 1'!$A$1' (workbook relative path)
-    " [1]!NAME (XLSX internal notation for workbooks)
-    " [1]Sheet1!$A$3
-    IF address = 'A1'.
-      result = VALUE #( top_left     = VALUE #( column       = 1
-                                                column_fixed = abap_false
-                                                row          = 1
-                                                row_fixed    = abap_false )
-                        bottom_right = VALUE #( column       = 1
-                                                column_fixed = abap_false
-                                                row          = 1
-                                                row_fixed    = abap_false      ) ).
-    ELSEIF address = 'A2'.
-      result = VALUE #( top_left     = VALUE #( column       = 1
-                                                column_fixed = abap_false
-                                                row          = 2
-                                                row_fixed    = abap_false )
-                        bottom_right = VALUE #( column       = 1
-                                                column_fixed = abap_false
-                                                row          = 2
-                                                row_fixed    = abap_false      ) ).
-    ELSEIF address = 'B$1'.
-      result = VALUE #( top_left     = VALUE #( column       = 2
-                                                column_fixed = abap_false
-                                                row          = 1
-                                                row_fixed    = abap_false )
-                        bottom_right = VALUE #( column       = 1
-                                                column_fixed = abap_false
-                                                row          = 1
-                                                row_fixed    = abap_false      ) ).
+    IF application->reference_style = application->c_reference_style-a1.
+      result = decode_range_address_a1( address ).
+    ELSE.
+      result = decode_range_address_r1_c1( address ).
+    ENDIF.
+    IF result-top_left IS INITIAL.
+*     " address is an invalid range address so it's probably referring to an existing name.
+*     " Find the name in the current worksheet
+*     result-name = parent->parent->names[ worksheet = parent ].
+*     " Find the name in the current workbook
+*     result-name = parent->parent->names[ worksheet = parent ].
     ENDIF.
   ENDMETHOD.
 
-  METHOD calculate.
-    formula2( )->calculate( ).
-  ENDMETHOD.
+  METHOD decode_range_address_a1.
+    " In the current worksheet:
+    "   A1 (relative column and row)
+    "   $A1 (absolute column, relative column)
+    "   A$1
+    "   $A$1
+    "   A1:A2
+    "   $A$A
+    "   A:A
+    "   1:1
+    "   NAME
+    " Other worksheet:
+    "   Sheet1!A1
+    "   'Sheet 1'!A1
+    "   [1]Sheet1!$A$3 (XLSX internal notation for workbooks)
+    " Other workbook:
+    "   '[C:\workbook.xlsx]'!NAME (workbook absolute path / name in the global scope)
+    "   '[workbook.xlsx]Sheet 1'!$A$1 (workbook relative path)
+    "   [1]!NAME (XLSX internal notation for workbooks)
+    TYPES ty_state TYPE i.
 
-  METHOD formula2.
-    IF _formula2 IS NOT BOUND.
-      _formula2 = lcl_excelom_formula2=>create( me ).
+    CONSTANTS:
+      BEGIN OF c_state,
+        initial                    TYPE ty_state VALUE 1,
+        start_of_cell_address      TYPE ty_state VALUE 2,
+        "! e.g. decoding A1 in A1:B2
+        first_name_of_cell_address TYPE ty_state VALUE 3,
+        "! e.g. decoding B2 in A1:B2
+        second_name_of_address     TYPE ty_state VALUE 4,
+      END OF c_state.
+
+    DATA(end_of_address) = |\n|.
+    DATA(address_is_a_name) = abap_false.
+    DATA(roman_letters) = ``.
+    DATA(numeric_digits) = ``.
+    DATA(dollar) = abap_false.
+
+    DATA(state) = c_state-initial.
+    DATA(offset) = 0.
+    WHILE offset <= strlen( address ).
+      IF offset < strlen( address ).
+        DATA(character) = substring( val = address
+                                     off = offset
+                                     len = 1 ).
+      ELSE.
+        character = end_of_address.
+      ENDIF.
+      CASE state.
+        WHEN c_state-initial.
+          CASE character.
+            WHEN ''''.
+              " other worksheet (in current or other workbook)
+              RAISE EXCEPTION TYPE lcx_excelom_to_do.
+            WHEN '['.
+              " worksheet in other workbook
+              RAISE EXCEPTION TYPE lcx_excelom_to_do.
+            WHEN '$'.
+              " $1:... or $A:... $A1:... or $A$1:...
+              IF dollar = abap_true.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              dollar = abap_true.
+              state = c_state-first_name_of_cell_address.
+            WHEN 'A' OR 'B' OR 'C' OR 'D' OR 'E' OR 'F' OR 'G' OR 'H' OR 'I' OR 'J' OR 'K' OR 'L' OR 'M'
+              OR 'N' OR 'O' OR 'P' OR 'Q' OR 'R' OR 'S' OR 'T' OR 'U' OR 'V' OR 'W' OR 'X' OR 'Y' OR 'Z'.
+              roman_letters = character.
+              state = c_state-first_name_of_cell_address.
+            WHEN '0' OR '1' OR '2' OR '3' OR '4' OR '5' OR '6' OR '7' OR '8' OR '9'.
+              numeric_digits = character.
+              state = c_state-first_name_of_cell_address.
+            WHEN OTHERS.
+              RAISE EXCEPTION TYPE lcx_excelom_to_do.
+          ENDCASE.
+
+        WHEN c_state-first_name_of_cell_address.
+          CASE character.
+            WHEN 'A' OR 'B' OR 'C' OR 'D' OR 'E' OR 'F' OR 'G' OR 'H' OR 'I' OR 'J' OR 'K' OR 'L' OR 'M'
+              OR 'N' OR 'O' OR 'P' OR 'Q' OR 'R' OR 'S' OR 'T' OR 'U' OR 'V' OR 'W' OR 'X' OR 'Y' OR 'Z'.
+              IF dollar = abap_true.
+                result-top_left-column_fixed = abap_true.
+                dollar = abap_false.
+              ENDIF.
+              IF numeric_digits IS NOT INITIAL.
+                " 1A is invalid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              roman_letters = roman_letters && character.
+
+            WHEN '0' OR '1' OR '2' OR '3' OR '4' OR '5' OR '6' OR '7' OR '8' OR '9'.
+              IF dollar = abap_true.
+                result-top_left-row_fixed = abap_true.
+                dollar = abap_false.
+              ENDIF.
+              numeric_digits = numeric_digits && character.
+
+            WHEN '$'.
+              IF dollar = abap_true.
+                " $$ is invalid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              dollar = abap_true.
+
+            WHEN ':'
+                OR end_of_address.
+              IF     roman_letters  IS INITIAL
+                 AND numeric_digits IS INITIAL.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              IF     roman_letters  IS INITIAL
+                 AND character = end_of_address.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              IF     numeric_digits IS INITIAL
+                 AND character = end_of_address.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              IF     roman_letters  IS INITIAL
+                 AND numeric_digits IS INITIAL.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              IF roman_letters IS NOT INITIAL.
+                IF     roman_letters NOT BETWEEN 'A' AND 'Z'
+                   AND roman_letters NOT BETWEEN 'AA' AND 'ZZ'
+                   AND roman_letters NOT BETWEEN 'AAA' AND 'XFD'.
+                  address_is_a_name = abap_true.
+                  EXIT.
+                ENDIF.
+                result-top_left-column = convert_column_a_xfd_to_number( roman_letters ).
+              ENDIF.
+              IF numeric_digits IS NOT INITIAL.
+                IF strlen( numeric_digits ) >= 8.
+                  address_is_a_name = abap_true.
+                  EXIT.
+                ENDIF.
+                result-top_left-row = numeric_digits.
+                IF result-top_left-row > 1048576.
+                  address_is_a_name = abap_true.
+                  EXIT.
+                ENDIF.
+              ENDIF.
+              roman_letters = VALUE #( ).
+              numeric_digits = VALUE #( ).
+              state = c_state-second_name_of_address.
+
+            WHEN OTHERS.
+              address_is_a_name = abap_true.
+              EXIT.
+          ENDCASE.
+
+        WHEN c_state-second_name_of_address.
+          CASE character.
+            WHEN 'A' OR 'B' OR 'C' OR 'D' OR 'E' OR 'F' OR 'G' OR 'H' OR 'I' OR 'J' OR 'K' OR 'L' OR 'M'
+              OR 'N' OR 'O' OR 'P' OR 'Q' OR 'R' OR 'S' OR 'T' OR 'U' OR 'V' OR 'W' OR 'X' OR 'Y' OR 'Z'.
+              IF numeric_digits IS NOT INITIAL.
+                " 1A is invalid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              roman_letters = roman_letters && character.
+
+            WHEN '0' OR '1' OR '2' OR '3' OR '4' OR '5' OR '6' OR '7' OR '8' OR '9'.
+              numeric_digits = numeric_digits && character.
+
+            WHEN '$'.
+              " A$1 or $1
+              IF     roman_letters                    IS INITIAL
+                 AND result-bottom_right-column_fixed  = abap_true.
+                " $$A isn't valid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ELSEIF     numeric_digits                IS INITIAL
+                     AND result-bottom_right-row_fixed  = abap_true.
+                " $$1 isn't valid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ELSEIF     roman_letters  IS NOT INITIAL
+                     AND numeric_digits IS NOT INITIAL.
+                " A1$ isn't valid
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              elseif      roman_letters          IS NOT INITIAL
+                      AND roman_letters NOT BETWEEN 'A' AND 'Z'
+                      AND roman_letters NOT BETWEEN 'AA' AND 'ZZ'
+                      AND roman_letters NOT BETWEEN 'AAA' AND 'XFD'.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              result-bottom_right-row_fixed = abap_true.
+
+            WHEN end_of_address.
+              IF     roman_letters  IS INITIAL
+                 AND numeric_digits IS INITIAL.
+                RAISE EXCEPTION TYPE lcx_excelom_to_do.
+              ENDIF.
+              IF     result-bottom_right-column  = 0
+                 AND roman_letters          IS NOT INITIAL.
+                result-bottom_right-column = convert_column_a_xfd_to_number( roman_letters ).
+              ENDIF.
+              IF numeric_digits IS NOT INITIAL.
+                result-bottom_right-row = numeric_digits.
+              ENDIF.
+              IF    numeric_digits           IS INITIAL
+                 OR strlen( numeric_digits ) >= 8.
+                address_is_a_name = abap_true.
+                EXIT.
+              ENDIF.
+              result-bottom_right-row = numeric_digits.
+              IF result-bottom_right-row > 1048576.
+                address_is_a_name = abap_true.
+                EXIT.
+              ENDIF.
+
+            WHEN OTHERS.
+              " Possibly a name except that the address contains ":" so it's not a name
+              RAISE EXCEPTION TYPE lcx_excelom_to_do.
+          ENDCASE.
+
+      ENDCASE.
+      offset = offset + 1.
+    ENDWHILE.
+
+    IF address_is_a_name = abap_false.
+      IF result-bottom_right IS INITIAL.
+        result-bottom_right = result-top_left.
+      ELSE.
+        IF     result-top_left-column     IS INITIAL
+           AND result-bottom_right-column IS NOT INITIAL.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ELSEIF     result-top_left-column     IS NOT INITIAL
+               AND result-bottom_right-column IS INITIAL.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ELSEIF     result-top_left-row     IS INITIAL
+               AND result-bottom_right-row IS NOT INITIAL.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ELSEIF     result-top_left-row     IS NOT INITIAL
+               AND result-bottom_right-row IS INITIAL.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ENDIF.
+      ENDIF.
+      IF     result-top_left-row IS NOT INITIAL
+             AND result-top_left-row  > result-bottom_right-row.
+        RAISE EXCEPTION TYPE lcx_excelom_to_do.
+      ELSEIF     result-top_left-column IS NOT INITIAL
+             AND result-top_left-column  > result-bottom_right-column.
+        RAISE EXCEPTION TYPE lcx_excelom_to_do.
+      ENDIF.
     ENDIF.
-    result = _formula2.
   ENDMETHOD.
 
-  METHOD parent.
-    result = _parent.
+  METHOD decode_range_address_r1_c1.
+
+  ENDMETHOD.
+
+  METHOD set_formula2.
+    DATA(lexer) = lcl_excelom_exprh_lexer=>create( ).
+    DATA(lexer_tokens) = lexer->lexe( value ).
+    DATA(parser) = lcl_excelom_exprh_parser=>create( ).
+    _formula_expression = parser->parse( lexer_tokens ).
+    IF application->calculation = application->c_calculation-automatic.
+      _set_value( value = _formula_expression->evaluate( context = lcl_excelom_evaluation_context=>create( containing_cell = me ) ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD _set_value.
+    IF value IS NOT BOUND.
+      RAISE EXCEPTION TYPE lcx_excelom_to_do.
+    ENDIF.
+    DATA(a) = REF #( parent->_cells[ row    = _address-top_left-row
+                                     column = _address-top_left-column ] OPTIONAL ).
+    IF a IS NOT BOUND.
+      INSERT VALUE #( row    = _address-top_left-row
+                      column = _address-top_left-column )
+             INTO TABLE parent->_cells
+             REFERENCE INTO a.
+    ENDIF.
+    CASE value->type.
+      WHEN value->c_type-number.
+        a->value_type = lcl_excelom_worksheet=>c_value_type-number.
+        a->value2-double = CAST lcl_excelom_result_number( value )->get_number( ).
+        a->value2-string = VALUE #( ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE lcx_excelom_to_do.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD set_value.
+    formula2 = ''.
+    _formula_expression = VALUE #( ).
+    _set_value( value ).
   ENDMETHOD.
 
   METHOD value.
-    IF _value IS NOT BOUND.
-      _value = lcl_excelom_range_value=>create( me ).
+    IF     _address-top_left-column = _address-bottom_right-column
+       AND _address-top_left-row    = _address-bottom_right-row.
+      DATA(cell) = REF #( parent->_cells[ row    = _address-top_left-row
+                                          column = _address-top_left-column ] OPTIONAL ).
+      IF cell IS NOT BOUND.
+        result = lcl_excelom_result_empty=>get_singleton( ).
+      ELSE.
+        CASE cell->value_type.
+          WHEN parent->c_value_type-number.
+            result = lcl_excelom_result_number=>create( number = cell->value2-double ).
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ENDCASE.
+      ENDIF.
+    ELSE.
+      result = lcl_excelom_result_array=>create_from_range( me ).
     ENDIF.
-    result = _value.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr_expression~is_equal.
-
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr_expression~evaluate.
-    result = lcl_excelom_result_array=>create_from_range( me ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -2248,24 +2587,26 @@ CLASS lcl_excelom_range_value IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD set.
-    DATA(row) = range->_address-top_left-row.
+    DATA(row) = range->_address-bottom_right-row.
     WHILE row <= range->_address-bottom_right-row.
-      DATA(column) = range->_address-top_left-column.
+      DATA(column) = range->_address-bottom_right-column.
       WHILE column <= range->_address-bottom_right-column.
-        DATA(cell) = REF #( range->_parent->_cells[ column = column
-                                                    row    = row ] OPTIONAL ).
+        DATA(cell) = REF #( range->parent->_cells[ column = column
+                                                   row    = row ] OPTIONAL ).
         IF cell IS NOT BOUND.
           INSERT VALUE #( column = column
                           row    = row )
-                 INTO TABLE range->_parent->_cells
+                 INTO TABLE range->parent->_cells
                  REFERENCE INTO cell.
         ENDIF.
         cell->value_type = type.
         CASE type.
-          WHEN cl_abap_typedescr=>typekind_float.
+          WHEN c_value_type-number.
             cell->value2-double = value.
-          WHEN cl_abap_typedescr=>typekind_string.
+          WHEN c_value_type-text.
             cell->value2-string = value.
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE lcx_excelom_to_do.
         ENDCASE.
         column = column + 1.
       ENDWHILE.
@@ -2289,15 +2630,8 @@ CLASS lcl_excelom_result_array IMPLEMENTATION.
   METHOD create_from_range.
     result = NEW lcl_excelom_result_array( ).
     result->lif_excelom_result~type = lif_excelom_result=>c_type-array.
-*    result->number_of_columns = range->rows->get_count( ).
+*    result->number_of_columns = range->rows( 3 )->count( ).
 *    result->range = range.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~get_cell_value.
-*    if range is bound.
-*      range->_address-bottom_right-column = .
-*      range->_parent->_
-*    endif.
   ENDMETHOD.
 
   METHOD create_initial.
@@ -2306,73 +2640,115 @@ CLASS lcl_excelom_result_array IMPLEMENTATION.
     result->number_of_columns = number_of_columns.
   ENDMETHOD.
 
+  METHOD lif_excelom_result~get_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*    if range is bound.
+*      range->_address-bottom_right-column = .
+*      range->_parent->_
+*    endif.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    result = abap_true.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    result = abap_false.
+  ENDMETHOD.
+
   METHOD lif_excelom_result~set_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_result_boolean IMPLEMENTATION.
+  METHOD create.
+    result = NEW lcl_excelom_result_boolean( ).
+    result->boolean_value = boolean_value.
+  ENDMETHOD.
+
   METHOD lif_excelom_result~get_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    result = abap_true.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    result = abap_false.
   ENDMETHOD.
 
   METHOD lif_excelom_result~set_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS lcl_excelom_result_empty IMPLEMENTATION.
+  METHOD get_singleton.
+    if singleton is not bound.
+      singleton = new lcl_excelom_result_empty( ).
+    endif.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~get_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~set_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_result_error IMPLEMENTATION.
   METHOD class_constructor.
-    " Error instances
-    " TODO #PYTHON! internal error number is not 2222, what is it?
-*    TYPES:
-*      BEGIN OF ty_errors,
-*        "! #BLOCKED!
-*        blocked                    TYPE ty_error_number,
-*        "! #CALC!
-*        calc                       TYPE ty_error_number,
-*        "! #CONNECT!
-*        connect                    TYPE ty_error_number,
-*        "! #DIV/0!
-*        "! Est produit par exemple par: <ul>
-*        "! <li>=1/0</li>
-*        "! </ul>
-*        division_by_zero           TYPE ty_error_number,
-*        "! #FIELD!
-*        field                      TYPE ty_error_number,
-*        "! #GETTING_DATA!
-*        getting_data               TYPE ty_error_number,
-*        "! #N/A
-*        "! Est produit par exemple par: <ul>
-*        "! <li>=ERROR.TYPE(1)</li>
-*        "! <li>C1 contains =A1:A2+B1:B3 -> C3=#N/A</li>
-*        "! </ul>
-*        na_not_applicable          TYPE ty_error_number,
-*        "! #NAME?
-*        "! Est produit par exemple par: <ul>
-*        "! <li>=abc</li>
-*        "! </ul>
-*        name                       TYPE ty_error_number,
-*        "! #NULL!
-*        null                     TYPE ty_error_number,
-*        "! #NUM!
-*        "! Est produit par exemple par: <ul>
-*        "! <li>=1E+240*1E+240</li>
-*        "! </ul>
-*        num                        TYPE ty_error_number,
-*        "! #PYTHON!
-*        python                     TYPE ty_error_number,
-*        "! #REF!
-*        ref                        TYPE ty_error_number,
-*        "! #SPILL!
-*        spill                      TYPE ty_error_number,
-*        "! #UNKNOWN!
-*        unknown                    TYPE ty_error_number,
-*        "! #VALUE!
-*        "! Est produit par exemple par: <ul>
-*        "! <li></li>
-*        "! </ul>
-*        value_cannot_be_calculated TYPE ty_error_number,
-*      END OF ty_errors.
     blocked                    = lcl_excelom_result_error=>create( error_name            = '#BLOCKED!     '
                                                                    internal_error_number = 2047
                                                                    formula_error_number  = 11 ).
@@ -2440,13 +2816,35 @@ CLASS lcl_excelom_result_error IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_by_error_number.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    result = abap_true.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    result = abap_false.
   ENDMETHOD.
 
   METHOD lif_excelom_result~get_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_result~set_cell_value.
-
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -2457,15 +2855,38 @@ CLASS lcl_excelom_result_number IMPLEMENTATION.
     result->lif_excelom_result~type = lif_excelom_result=>c_type-number.
     result->number                  = number.
   ENDMETHOD.
+
   METHOD get_number.
     result = number.
   ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    result = abap_true.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    result = abap_false.
+  ENDMETHOD.
+
   METHOD lif_excelom_result~get_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
+
   METHOD lif_excelom_result~set_cell_value.
-
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
-
 ENDCLASS.
 
 
@@ -2475,42 +2896,66 @@ CLASS lcl_excelom_result_string IMPLEMENTATION.
     result->lif_excelom_result~type = lif_excelom_result=>c_type-string.
     result->string                  = string.
   ENDMETHOD.
+
   METHOD lif_excelom_result~get_cell_value.
     result = me.
   ENDMETHOD.
-  METHOD lif_excelom_result~set_cell_value.
 
+  METHOD lif_excelom_result~is_array.
+    result = abap_false.
   ENDMETHOD.
 
+  METHOD lif_excelom_result~is_boolean.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    result = abap_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    result = abap_true.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~set_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
 ENDCLASS.
 
 
 CLASS lcl_excelom_worksheet IMPLEMENTATION.
   METHOD calculate.
-    LOOP AT formulas INTO DATA(formula).
-      formula->calculate( ).
-    ENDLOOP.
+*    LOOP AT formulas INTO DATA(formula).
+*      formula->calculate( ).
+*    ENDLOOP.
   ENDMETHOD.
 
   METHOD create.
     result = NEW lcl_excelom_worksheet( ).
+    result->parent = workbook.
+    result->application = workbook->application.
   ENDMETHOD.
 
   METHOD range_from_address.
-    DATA(range_1) = lcl_excelom_range=>create_from_address( address     = cell1
-                                                            relative_to = me ).
+    DATA(range_1) = lcl_excelom_range=>create_from_address_or_name( address     = cell1
+                                                                    relative_to = me ).
     IF cell2 IS INITIAL.
       result = range_1.
     ELSE.
-      DATA(range_2) = lcl_excelom_range=>create_from_address( address     = cell2
-                                                              relative_to = me ).
+      DATA(range_2) = lcl_excelom_range=>create_from_address_or_name( address     = cell2
+                                                                      relative_to = me ).
       result = range_from_two_ranges( cell1 = range_1
                                       cell2 = range_2 ).
     ENDIF.
   ENDMETHOD.
 
   METHOD range_from_two_ranges.
-    result = lcl_excelom_range=>create( cell1 = cell1
+    result = lcl_excelom_range=>create( worksheet = me
+                                        cell1 = cell1
                                         cell2 = cell2 ).
   ENDMETHOD.
 ENDCLASS.
@@ -2519,23 +2964,23 @@ ENDCLASS.
 CLASS lcl_excelom_worksheets IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_worksheets( ).
+    result->application = workbook->application.
+    result->workbook = workbook.
   ENDMETHOD.
 
   METHOD add.
     DATA worksheet TYPE ty_worksheet.
 
     worksheet-name   = name.
-    worksheet-object = lcl_excelom_worksheet=>create( ).
+    worksheet-object = lcl_excelom_worksheet=>create( workbook ).
     INSERT worksheet INTO TABLE worksheets.
+    count = count + 1.
+
     result = worksheet-object.
   ENDMETHOD.
 
-  METHOD count.
-    result = lines( worksheets ).
-  ENDMETHOD.
-
   METHOD item.
-    CASE lcl_excelom=>type( index ).
+    CASE lcl_excelom_application=>type( index ).
       WHEN cl_abap_typedescr=>typekind_string
         OR cl_abap_typedescr=>typekind_char.
         result = worksheets[ name = index ]-object.
@@ -2551,36 +2996,36 @@ ENDCLASS.
 CLASS lcl_excelom_workbook IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_workbook( ).
-    result->_worksheets = lcl_excelom_worksheets=>create( ).
-    result->_worksheets->add( name = 'Sheet1' ).
+    result->application = application.
+    result->worksheets = lcl_excelom_worksheets=>create( workbook = result ).
+    result->worksheets->add( name = 'Sheet1' ).
   ENDMETHOD.
 
-  METHOD worksheets.
-    result = _worksheets.
-  ENDMETHOD.
+
 ENDCLASS.
 
 
 CLASS lcl_excelom_workbooks IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_workbooks( ).
+    result->application = application.
   ENDMETHOD.
 
   METHOD add.
     DATA workbook TYPE ty_workbook.
 
     workbook-name   = name.
-    workbook-object = lcl_excelom_workbook=>create( ).
+    workbook-object = lcl_excelom_workbook=>create( application ).
     INSERT workbook INTO TABLE workbooks.
+    count = count + 1.
+
     result = workbook-object.
   ENDMETHOD.
 
-  METHOD count.
-    result = lines( workbooks ).
-  ENDMETHOD.
+
 
   METHOD item.
-    CASE lcl_excelom=>type( index ).
+    CASE lcl_excelom_application=>type( index ).
       WHEN cl_abap_typedescr=>typekind_string.
         result = workbooks[ name = index ]-object.
       WHEN cl_abap_typedescr=>typekind_int.
@@ -2592,20 +3037,20 @@ CLASS lcl_excelom_workbooks IMPLEMENTATION.
 ENDCLASS.
 
 
-CLASS lcl_excelom IMPLEMENTATION.
+CLASS lcl_excelom_application IMPLEMENTATION.
   METHOD create.
-    result = NEW lcl_excelom( ).
-    result->_workbooks = lcl_excelom_workbooks=>create( ).
+    result = NEW lcl_excelom_application( ).
+    result->workbooks = lcl_excelom_workbooks=>create( result ).
   ENDMETHOD.
 
   METHOD calculate.
     DATA(workbook_number) = 1.
-    WHILE workbook_number <= _workbooks->count( ).
-      DATA(workbook) = _workbooks->item( workbook_number ).
+    WHILE workbook_number <= workbooks->count.
+      DATA(workbook) = workbooks->item( workbook_number ).
 
       DATA(worksheet_number) = 1.
-      WHILE worksheet_number <= workbook->worksheets( )->count( ).
-        DATA(worksheet) = workbook->worksheets( )->item( worksheet_number ).
+      WHILE worksheet_number <= workbook->worksheets->count.
+        DATA(worksheet) = workbook->worksheets->item( worksheet_number ).
         worksheet->calculate( ).
       ENDWHILE.
     ENDWHILE.
@@ -2614,10 +3059,36 @@ CLASS lcl_excelom IMPLEMENTATION.
   METHOD type.
     DESCRIBE FIELD any_data_object TYPE result.
   ENDMETHOD.
+ENDCLASS.
 
-  METHOD workbooks.
-    result = _workbooks.
-  ENDMETHOD.
+
+CLASS ltc_evaluate DEFINITION FINAL
+  FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
+
+  PRIVATE SECTION.
+    METHODS one_plus_one FOR TESTING RAISING cx_static_check.
+    METHODS test31 FOR TESTING RAISING cx_static_check.
+
+    TYPES tt_parenthesis_group TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group.
+    TYPES tt_token             TYPE lcl_excelom_exprh_lexer=>tt_token.
+    TYPES ts_result_lexe       TYPE lcl_excelom_exprh_lexer=>ts_result_lexe.
+
+    CONSTANTS c_type LIKE lcl_excelom_exprh_lexer=>c_type VALUE lcl_excelom_exprh_lexer=>c_type.
+    DATA: worksheet TYPE REF TO lcl_excelom_worksheet.
+
+
+
+    METHODS lexe
+      IMPORTING !text         TYPE csequence
+      RETURNING VALUE(result) TYPE tt_token. "ts_result_lexe.
+
+    METHODS parse
+      IMPORTING !tokens            TYPE lcl_excelom_exprh_lexer=>tt_token
+      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr
+      RAISING   lcx_excelom_expr_parser.
+
+    METHODS setup.
+
 ENDCLASS.
 
 
@@ -2648,7 +3119,7 @@ CLASS ltc_lexer DEFINITION FINAL
 
     METHODS lexe
       IMPORTING !text         TYPE csequence
-      RETURNING VALUE(result) TYPE ts_result_lexe.
+      RETURNING VALUE(result) TYPE tt_token."ts_result_lexe.
 
 ENDCLASS.
 
@@ -2657,31 +3128,33 @@ CLASS ltc_parser DEFINITION FINAL
   FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
 
   PRIVATE SECTION.
-    METHODS lexe_parse_evaluate  FOR TESTING RAISING cx_static_check.
+
     METHODS one_plus_one FOR TESTING RAISING cx_static_check.
-    METHODS test4  FOR TESTING RAISING cx_static_check.
-    METHODS test31 FOR TESTING RAISING cx_static_check.
+    METHODS very_long  FOR TESTING RAISING cx_static_check.
+*    METHODS test31 FOR TESTING RAISING cx_static_check.
     METHODS parentheses_arithmetic FOR TESTING RAISING cx_static_check.
     METHODS parentheses_arithmetic_complex FOR TESTING RAISING cx_static_check.
 
-    TYPES tt_token TYPE lcl_excelom_exprh_lexer=>tt_token.
+    TYPES tt_token       TYPE lcl_excelom_exprh_lexer=>tt_token.
+    TYPES ts_result_lexe TYPE lcl_excelom_exprh_lexer=>ts_result_lexe.
 
     CONSTANTS c_type LIKE lcl_excelom_exprh_lexer=>c_type VALUE lcl_excelom_exprh_lexer=>c_type.
 
     METHODS assert_equals
-      IMPORTING act            TYPE REF TO lif_excelom_expr_expression
-                exp            TYPE REF TO lif_excelom_expr_expression
+      IMPORTING act            TYPE REF TO lif_excelom_expr
+                exp            TYPE REF TO lif_excelom_expr
       RETURNING VALUE(result)  TYPE REF TO lif_excelom_result.
+
+
+
+    METHODS lexe
+      IMPORTING !text         TYPE csequence
+      RETURNING VALUE(result) TYPE tt_token. "ts_result_lexe.
 
     METHODS parse
       IMPORTING !tokens            TYPE lcl_excelom_exprh_lexer=>tt_token
-                parenthesis_groups TYPE lcl_excelom_exprh_lexer=>tt_parenthesis_group OPTIONAL
-      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr_expression
+      RETURNING VALUE(result)      TYPE REF TO lif_excelom_expr
       RAISING   lcx_excelom_expr_parser.
-
-    METHODS evaluate
-      IMPORTING expression    TYPE REF TO lif_excelom_expr_expression
-      RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
 
     METHODS get_texts_from_matches
       IMPORTING i_string      TYPE string
@@ -2691,178 +3164,202 @@ CLASS ltc_parser DEFINITION FINAL
 ENDCLASS.
 
 
-CLASS ltc_lexer IMPLEMENTATION.
+CLASS ltc_range DEFINITION FINAL
+  FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_all_friends.
+
+  PRIVATE SECTION.
+    METHODS convert_column_a_xfd_to_number FOR TESTING RAISING cx_static_check.
+    METHODS decode_range_address_a1_invali FOR TESTING RAISING cx_static_check.
+    METHODS decode_range_address_a1_valid  FOR TESTING RAISING cx_static_check.
+
+    TYPES ty_address TYPE lcl_excelom_range=>ty_address.
+ENDCLASS.
+
+
+CLASS ltc_evaluate IMPLEMENTATION.
   METHOD lexe.
     DATA(lexer) = lcl_excelom_exprh_lexer=>create( ).
     result = lexer->lexe( text ).
   ENDMETHOD.
 
+  METHOD one_plus_one.
+    DATA(range) = worksheet->range_from_address( 'A1' ).
+    range->set_formula2( value = `1+1` ).
+    cl_abap_unit_assert=>assert_true( range->value( )->is_number( ) ).
+    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range->value( ) )->get_number( )
+                                        exp = 2 ).
+  ENDMETHOD.
+
+  METHOD parse.
+    result = lcl_excelom_exprh_parser=>create( )->parse( tokens ).
+  ENDMETHOD.
+
+  METHOD setup.
+    DATA(app) = lcl_excelom_application=>create( ).
+    DATA(workbook) = app->workbooks->add( 'name' ).
+    worksheet = workbook->worksheets->item( 'Sheet1' ).
+  ENDMETHOD.
+
+  METHOD test31.
+    worksheet->range_from_address( 'A1' )->set_value( lcl_excelom_result_number=>create( 10 ) ).
+    DATA(range) = worksheet->range_from_address( 'A2' ).
+    range->set_formula2( 'A1+1' ).
+    "range->calculate( ).
+    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range->value( ) )->get_number( )
+                                        exp = 11 ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_lexer IMPLEMENTATION.
   METHOD arithmetic.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( '2*(1+3*(5+1))' )
-        exp = VALUE ts_result_lexe( tokens             = VALUE #( ( value = `2`  type = c_type-number )
-                                                                  ( value = `*`  type = c_type-operator )
-                                                                  ( value = `(`  type = c_type-parenthesis_open )
-                                                                  ( value = `1`  type = c_type-number )
-                                                                  ( value = `+`  type = c_type-operator )
-                                                                  ( value = `3`  type = c_type-number )
-                                                                  ( value = `*`  type = c_type-operator )
-                                                                  ( value = `(`  type = c_type-parenthesis_open )
-                                                                  ( value = `5`  type = c_type-number )
-                                                                  ( value = `+`  type = c_type-operator )
-                                                                  ( value = `1`  type = c_type-number )
-                                                                  ( value = `)`  type = c_type-parenthesis_close )
-                                                                  ( value = `)`  type = c_type-parenthesis_close ) )
-                                    parenthesis_groups = VALUE #( ( from_token = 3 to_token = 13 level = 1 last_subgroup_token = 12 )
-                                                                  ( from_token = 8 to_token = 12 level = 2 last_subgroup_token = 11 ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( '2*(1+3*(5+1))' )
+                                        exp = VALUE tt_token( ( value = `2`  type = c_type-number )
+                                                              ( value = `*`  type = c_type-operator )
+                                                              ( value = `(`  type = c_type-parenthesis_open )
+                                                              ( value = `1`  type = c_type-number )
+                                                              ( value = `+`  type = c_type-operator )
+                                                              ( value = `3`  type = c_type-number )
+                                                              ( value = `*`  type = c_type-operator )
+                                                              ( value = `(`  type = c_type-parenthesis_open )
+                                                              ( value = `5`  type = c_type-number )
+                                                              ( value = `+`  type = c_type-operator )
+                                                              ( value = `1`  type = c_type-number )
+                                                              ( value = `)`  type = c_type-parenthesis_close )
+                                                              ( value = `)`  type = c_type-parenthesis_close ) ) ).
+*                                    parenthesis_groups = VALUE #( ( from_token = 3 to_token = 13 level = 1 last_subgroup_token = 12 )
+*                                                                  ( from_token = 8 to_token = 12 level = 2 last_subgroup_token = 11 ) ) ) ).
   ENDMETHOD.
 
   METHOD function.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( 'IF(1=1,0,1)' ) "-tokens
-        exp = VALUE ts_result_lexe( tokens             = VALUE #( ( value = `IF` type = c_type-function_name )
-                                                                  ( value = `(`  type = '(' )
-                                                                  ( value = `1`  type = c_type-number )
-                                                                  ( value = `=`  type = c_type-operator )
-                                                                  ( value = `1`  type = c_type-number )
-                                                                  ( value = `,`  type = ',' )
-                                                                  ( value = `0`  type = c_type-number )
-                                                                  ( value = `,`  type = ',' )
-                                                                  ( value = `1`  type = c_type-number )
-                                                                  ( value = `)`  type = ')' ) )
-                                    parenthesis_groups = VALUE #( ( from_token = 2 to_token = 10 level = 1 last_subgroup_token = 9 )
-                                                                  ( from_token = 3 to_token =  5 level = 2 last_subgroup_token = 0 )
-                                                                  ( from_token = 7 to_token =  7 level = 2 last_subgroup_token = 0 )
-                                                                  ( from_token = 9 to_token =  9 level = 2 last_subgroup_token = 0 ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( 'IF(1=1,0,1)' ) "-tokens
+                                        exp = VALUE tt_token( ( value = `IF` type = c_type-function_name )
+                                                              ( value = `(`  type = '(' )
+                                                              ( value = `1`  type = c_type-number )
+                                                              ( value = `=`  type = c_type-operator )
+                                                              ( value = `1`  type = c_type-number )
+                                                              ( value = `,`  type = ',' )
+                                                              ( value = `0`  type = c_type-number )
+                                                              ( value = `,`  type = ',' )
+                                                              ( value = `1`  type = c_type-number )
+                                                              ( value = `)`  type = ')' ) ) ).
+  ENDMETHOD.
+
+  METHOD lexe.
+    DATA(lexer) = lcl_excelom_exprh_lexer=>create( ).
+    result = lexer->lexe( text ).
   ENDMETHOD.
 
   METHOD number.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( '25' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `25` type = c_type-number ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( '25' )
+                                        exp = VALUE tt_token( ( value = `25` type = c_type-number ) ) ).
   ENDMETHOD.
 
   METHOD range.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( 'Sheet1!$A$1' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Sheet1!$A$1` type = 'W' ) ) ) ).
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( `'Sheet 1'!$A$1` )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `'Sheet 1'!$A$1` type = 'W' ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( 'Sheet1!$A$1' )
+                                        exp = VALUE tt_token( ( value = `Sheet1!$A$1` type = 'W' ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( `'Sheet 1'!$A$1` )
+                                        exp = VALUE tt_token( ( value = `'Sheet 1'!$A$1` type = 'W' ) ) ).
   ENDMETHOD.
 
   METHOD smart_table.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( 'Table1[]' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1` type = c_type-table_name )
-                                                      ( value = `[`      type = `[` )
-                                                      ( value = `]`      type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( 'Table1[]' )
+                                        exp = VALUE tt_token( ( value = `Table1` type = c_type-table_name )
+                                                              ( value = `[`      type = `[` )
+                                                              ( value = `]`      type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_all.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( 'Table1[[#All]]' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1` type = c_type-table_name )
-                                                      ( value = `[`      type = `[` )
-                                                      ( value = `[#All]` type = `[` )
-                                                      ( value = `]`      type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( 'Table1[[#All]]' )
+                                        exp = VALUE tt_token( ( value = `Table1` type = c_type-table_name )
+                                                              ( value = `[`      type = `[` )
+                                                              ( value = `[#All]` type = `[` )
+                                                              ( value = `]`      type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_column.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( 'Table1[Column1]' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `Table1`    type = c_type-table_name )
-                                                      ( value = `[Column1]` type = `[` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( 'Table1[Column1]' )
+                                        exp = VALUE tt_token( ( value = `Table1`    type = c_type-table_name )
+                                                              ( value = `[Column1]` type = `[` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_no_space.
     " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( `DeptSales[[#Headers],[#Data],[% Commission]]` )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
-                                                      ( value = `[`              type = `[` )
-                                                      ( value = `[#Headers]`     type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[#Data]`        type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[% Commission]` type = `[` )
-                                                      ( value = `]`              type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[[#Headers],[#Data],[% Commission]]` )
+                                        exp = VALUE tt_token( ( value = `DeptSales`      type = c_type-table_name )
+                                                              ( value = `[`              type = `[` )
+                                                              ( value = `[#Headers]`     type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[#Data]`        type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[% Commission]` type = `[` )
+                                                              ( value = `]`              type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_space_all.
     " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( `DeptSales[ [#Headers], [#Data], [% Commission] ]` )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
-                                                      ( value = `[`              type = `[` )
-                                                      ( value = `[#Headers]`     type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[#Data]`        type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[% Commission]` type = `[` )
-                                                      ( value = `]`              type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[ [#Headers], [#Data], [% Commission] ]` )
+                                        exp = VALUE tt_token( ( value = `DeptSales`      type = c_type-table_name )
+                                                              ( value = `[`              type = `[` )
+                                                              ( value = `[#Headers]`     type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[#Data]`        type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[% Commission]` type = `[` )
+                                                              ( value = `]`              type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_space_boundaries.
     " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( `DeptSales[ [#Headers],[#Data],[% Commission] ]` )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
-                                                      ( value = `[`              type = `[` )
-                                                      ( value = `[#Headers]`     type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[#Data]`        type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[% Commission]` type = `[` )
-                                                      ( value = `]`              type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[ [#Headers],[#Data],[% Commission] ]` )
+                                        exp = VALUE tt_token( ( value = `DeptSales`      type = c_type-table_name )
+                                                              ( value = `[`              type = `[` )
+                                                              ( value = `[#Headers]`     type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[#Data]`        type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[% Commission]` type = `[` )
+                                                              ( value = `]`              type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD smart_table_space_separator.
     " https://support.microsoft.com/en-us/office/using-structured-references-with-excel-tables-f5ed2452-2337-4f71-bed3-c8ae6d2b276e
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( `DeptSales[[#Headers], [#Data], [% Commission]]` )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `DeptSales`      type = c_type-table_name )
-                                                      ( value = `[`              type = `[` )
-                                                      ( value = `[#Headers]`     type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[#Data]`        type = `[` )
-                                                      ( value = `,`              type = `,` )
-                                                      ( value = `[% Commission]` type = `[` )
-                                                      ( value = `]`              type = `]` ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( `DeptSales[[#Headers], [#Data], [% Commission]]` )
+                                        exp = VALUE tt_token( ( value = `DeptSales`      type = c_type-table_name )
+                                                              ( value = `[`              type = `[` )
+                                                              ( value = `[#Headers]`     type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[#Data]`        type = `[` )
+                                                              ( value = `,`              type = `,` )
+                                                              ( value = `[% Commission]` type = `[` )
+                                                              ( value = `]`              type = `]` ) ) ).
   ENDMETHOD.
 
   METHOD text_literal.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( '"IF(1=1,0,1)"' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `"IF(1=1,0,1)"` type = '"' ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( '"IF(1=1,0,1)"' )
+                                        exp = VALUE tt_token( ( value = `"IF(1=1,0,1)"` type = '"' ) ) ).
   ENDMETHOD.
 
   METHOD text_literal_with_double_quote.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( '"IF(A1=""X"",0,1)"' )
-        exp = VALUE ts_result_lexe( tokens = VALUE #( ( value = `"IF(A1=""X"",0,1)"` type = '"' ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( '"IF(A1=""X"",0,1)"' )
+                                        exp = VALUE tt_token( ( value = `"IF(A1=""X"",0,1)"` type = '"' ) ) ).
   ENDMETHOD.
 
   METHOD very_long.
-    cl_abap_unit_assert=>assert_equals(
-        act = lexe( |(a{ repeat( val = ',a'
-                                 occ = 5000 )
-                    })| )
-        exp = VALUE ts_result_lexe(
-                  tokens             = VALUE #( ( value = `(` type = '(' )
-                                                ( value = `a` type = 'W' )
-                                                ( LINES OF VALUE
-                                                  tt_token( FOR i = 1 WHILE i <= 5000
-                                                            ( value = `,` type = ',' )
-                                                            ( value = `a` type = 'W' ) ) )
-                                                ( value = `)` type = ')' ) )
-                  parenthesis_groups = VALUE #(
-                      ( from_token = 1 to_token = 10003 level = 1 last_subgroup_token = 10002 )
-                      ( LINES OF VALUE
-                        tt_parenthesis_group( FOR i = 1 WHILE i <= 5001
-                                              ( from_token = i * 2 to_token = i * 2 level = 2 last_subgroup_token = 0 ) ) ) ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lexe( |(a{ repeat( val = ',a'
+                                                                 occ = 5000 )
+                                                    })| )
+                                        exp = VALUE tt_token( ( value = `(` type = '(' )
+                                                              ( value = `a` type = 'W' )
+                                                              ( LINES OF VALUE
+                                                                tt_token( FOR i = 1 WHILE i <= 5000
+                                                                          ( value = `,` type = ',' )
+                                                                          ( value = `a` type = 'W' ) ) )
+                                                              ( value = `)` type = ')' ) ) ).
   ENDMETHOD.
-
 ENDCLASS.
 
 
@@ -2871,16 +3368,17 @@ CLASS ltc_parser IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( xsdbool( exp->is_equal( act ) ) ).
   ENDMETHOD.
 
-  METHOD evaluate.
-    result = expression->evaluate( ).
-  ENDMETHOD.
-
   METHOD get_texts_from_matches.
     LOOP AT i_matches REFERENCE INTO DATA(match).
       APPEND substring( val = i_string
                         off = match->offset
                         len = match->length ) TO result.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD lexe.
+    DATA(lexer) = lcl_excelom_exprh_lexer=>create( ).
+    result = lexer->lexe( text ).
   ENDMETHOD.
 
   METHOD one_plus_one.
@@ -2893,42 +3391,36 @@ CLASS ltc_parser IMPLEMENTATION.
 
   METHOD parentheses_arithmetic.
     " lexe( '2*(1+3)' )
-    DATA(act) = parse(
-        tokens             = VALUE #( ( value = `2`  type = c_type-number )
-                                      ( value = `*`  type = c_type-operator )
-                                      ( value = `(`  type = c_type-parenthesis_open )
-                                      ( value = `1`  type = c_type-number )
-                                      ( value = `+`  type = c_type-operator )
-                                      ( value = `3`  type = c_type-number )
-                                      ( value = `)`  type = c_type-parenthesis_close ) )
-        parenthesis_groups = VALUE #( ( from_token = 3 to_token = 7 level = 1 last_subgroup_token = 6 ) ) ).
-    DATA(exp) = lcl_excelom_expr_mult=>create(
-                    left_operand  = lcl_excelom_expr_number=>create( 2 )
-                    right_operand = lcl_excelom_expr_plus=>create(
-                        left_operand  = lcl_excelom_expr_number=>create( 1 )
-                        right_operand = lcl_excelom_expr_number=>create( 3 ) ) ).
+    DATA(act) = parse( VALUE #( ( value = `2`  type = c_type-number )
+                                ( value = `*`  type = c_type-operator )
+                                ( value = `(`  type = c_type-parenthesis_open )
+                                ( value = `1`  type = c_type-number )
+                                ( value = `+`  type = c_type-operator )
+                                ( value = `3`  type = c_type-number )
+                                ( value = `)`  type = c_type-parenthesis_close ) ) ).
+    DATA(exp) = lcl_excelom_expr_mult=>create( left_operand  = lcl_excelom_expr_number=>create( 2 )
+                                               right_operand = lcl_excelom_expr_plus=>create(
+                                                   left_operand  = lcl_excelom_expr_number=>create( 1 )
+                                                   right_operand = lcl_excelom_expr_number=>create( 3 ) ) ).
     assert_equals( act = act
                    exp = exp ).
   ENDMETHOD.
 
   METHOD parentheses_arithmetic_complex.
     " lexe( '2*(1+3*(5+1))' )
-    DATA(act) = parse(
-        tokens             = VALUE #( ( value = `2`  type = c_type-number )
-                                      ( value = `*`  type = c_type-operator )
-                                      ( value = `(`  type = c_type-parenthesis_open )
-                                      ( value = `1`  type = c_type-number )
-                                      ( value = `+`  type = c_type-operator )
-                                      ( value = `3`  type = c_type-number )
-                                      ( value = `*`  type = c_type-operator )
-                                      ( value = `(`  type = c_type-parenthesis_open )
-                                      ( value = `5`  type = c_type-number )
-                                      ( value = `+`  type = c_type-operator )
-                                      ( value = `1`  type = c_type-number )
-                                      ( value = `)`  type = c_type-parenthesis_close )
-                                      ( value = `)`  type = c_type-parenthesis_close ) )
-        parenthesis_groups = VALUE #( ( from_token = 3 to_token = 13 level = 1 last_subgroup_token = 12 )
-                                      ( from_token = 8 to_token = 12 level = 2 last_subgroup_token = 11 ) ) ).
+    DATA(act) = parse( tokens = VALUE #( ( value = `2`  type = c_type-number )
+                                         ( value = `*`  type = c_type-operator )
+                                         ( value = `(`  type = c_type-parenthesis_open )
+                                         ( value = `1`  type = c_type-number )
+                                         ( value = `+`  type = c_type-operator )
+                                         ( value = `3`  type = c_type-number )
+                                         ( value = `*`  type = c_type-operator )
+                                         ( value = `(`  type = c_type-parenthesis_open )
+                                         ( value = `5`  type = c_type-number )
+                                         ( value = `+`  type = c_type-operator )
+                                         ( value = `1`  type = c_type-number )
+                                         ( value = `)`  type = c_type-parenthesis_close )
+                                         ( value = `)`  type = c_type-parenthesis_close ) ) ).
     DATA(exp) = lcl_excelom_expr_mult=>create(
                     left_operand  = lcl_excelom_expr_number=>create( 2 )
                     right_operand = lcl_excelom_expr_plus=>create(
@@ -2943,40 +3435,89 @@ CLASS ltc_parser IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD parse.
-    result = lcl_excelom_exprh_parser=>create( )->parse( tokens             = tokens
-                                                        parenthesis_groups = parenthesis_groups ).
-*    DATA(parser) = lcl_excelom_expr_parser=>create( lcl_excelom_range=>create_from_address(
-*                                                        address     = 'A1'
-*                                                        relative_to = lcl_excelom_worksheet=>create( ) ) ).
-*    result = parser->parse( lexer_tokens ).
+    result = lcl_excelom_exprh_parser=>create( )->parse( tokens ).
   ENDMETHOD.
 
-  METHOD lexe_parse_evaluate.
-    DATA(lexe_result) = lcl_excelom_exprh_lexer=>create( )->lexe( `1+1` ).
-    DATA(result) = evaluate( parse( tokens = lexe_result-tokens ) ).
-    cl_abap_unit_assert=>assert_equals( act = result->type
-                                        exp = result->c_type-number ).
-    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( result )->get_number( )
-                                        exp = 2 ).
-  ENDMETHOD.
-
-  METHOD test31.
-    DATA(app) = lcl_excelom=>create( ).
-    DATA(workbook) = app->workbooks( )->add( 'name' ).
-    DATA(worksheet) = workbook->worksheets( )->item( 'Sheet1' ).
-    worksheet->range_from_address( 'A1' )->value( )->set_double( 10 ).
-    DATA(range) = worksheet->range_from_address( 'A2' ).
-    range->formula2( )->set_value( '=A1+1' ).
-    app->calculate( ).
-    cl_abap_unit_assert=>assert_equals( act = range->value( )
-                                        exp = 11 ).
-  ENDMETHOD.
-
-  METHOD test4.
-*    data(a) = parse( lexe(
-*`IFERROR(IF(C2<>"",IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Assigned Attorney",OR(B2="Jimmy Edwards",B2="Kathleen McCarthy")),"Sales Team",IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Intake Team, Assig` &&
+  METHOD very_long.
+    cl_abap_unit_assert=>fail( msg   = 'TO DO'
+                               level = if_aunit_constants=>tolerable ).
+*    DATA(a) = parse(
+*        lexe(
+*            `IFERROR(IF(C2<>"",IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Assigned Attorney",OR(B2="Jimmy Edwards",B2="Kathleen McCarthy")),"Sales Team",IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Intake Team, Assig` &&
 *`ned Attorney, or Sales Team",B2<>"Jimmy Edwards",B2<>"Kathleen McCarthy"),B2,IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Intake Team, Assigned Attorney, or Sales Team",OR(B2="Jimmy Edwards",B2="Kathleen McCarthy")),"Sales Team",IF(VL` &&
 *`OOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Assigned Attorney",B2,IF(AND(VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE)="Sales Team",OR(B2="Jimmy Edwards",B2="Kathleen McCarthy")),"Sales Team",IF(C2<>"",VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1` &&
-*`!$A:$B,2,FALSE),"INTAKE TEAM")))))), VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE),"")` ) ).
+*            `!$A:$B,2,FALSE),"INTAKE TEAM")))))), VLOOKUP(A2&"",[LPSMatch.xlsx]Sheet1!$A:$B,2,FALSE),"")` ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+CLASS ltc_range IMPLEMENTATION.
+  METHOD convert_column_a_xfd_to_number.
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>convert_column_a_xfd_to_number( roman_letters = 'XFD' )
+                                        exp = 16384 ).
+
+    TRY.
+        lcl_excelom_range=>convert_column_a_xfd_to_number( roman_letters = 'XFE' ).
+        cl_abap_unit_assert=>fail( msg = 'Exception expected for XFE - Column does not exist' ).
+      CATCH cx_root ##NO_HANDLER.
+    ENDTRY.
+
+    TRY.
+        lcl_excelom_range=>convert_column_a_xfd_to_number( roman_letters = 'ZZZZ' ).
+        cl_abap_unit_assert=>fail( msg = 'Exception expected for XFE - Column does not exist' ).
+      CATCH cx_root ##NO_HANDLER.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD decode_range_address_a1_invali.
+    LOOP AT VALUE string_table( ( `:` ) ( `` ) ( `$` ) ( `A` ) ( `A:` ) ( `$$A1` ) ( `A:A1` ) ( `B2:A1` ) ) INTO DATA(address).
+      TRY.
+          lcl_excelom_range=>decode_range_address_a1( address ).
+          cl_abap_unit_assert=>fail( msg = |Exception expected for address "{ address }"| ).
+        CATCH cx_root ##NO_HANDLER.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD decode_range_address_a1_valid.
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( 'A1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column = 1
+                                                                                        row    = 1 )
+                                                                bottom_right = VALUE #( column = 1
+                                                                                        row    = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( 'A$1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column    = 1
+                                                                                        row       = 1
+                                                                                        row_fixed = abap_true )
+                                                                bottom_right = VALUE #( column    = 1
+                                                                                        row       = 1
+                                                                                        row_fixed = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( '$A1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column       = 1
+                                                                                        column_fixed = abap_true
+                                                                                        row          = 1 )
+                                                                bottom_right = VALUE #( column       = 1
+                                                                                        column_fixed = abap_true
+                                                                                        row          = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( '$A$1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column       = 1
+                                                                                        column_fixed = abap_true
+                                                                                        row          = 1
+                                                                                        row_fixed    = abap_true )
+                                                                bottom_right = VALUE #( column       = 1
+                                                                                        column_fixed = abap_true
+                                                                                        row          = 1
+                                                                                        row_fixed    = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( 'A1:B1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column = 1
+                                                                                        row    = 1 )
+                                                                bottom_right = VALUE #( column = 2
+                                                                                        row    = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( 'A:A' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( column = 1 )
+                                                                bottom_right = VALUE #( column = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom_range=>decode_range_address_a1( '1:1' )
+                                        exp = VALUE ty_address( top_left     = VALUE #( row = 1 )
+                                                                bottom_right = VALUE #( row = 1 ) ) ).
   ENDMETHOD.
 ENDCLASS.
