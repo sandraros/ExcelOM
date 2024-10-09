@@ -1,35 +1,12 @@
 REPORT zzsro_excel_formula_engine.
 
-" Excel saves formulas with R1C1 reference style addresses in A1 style.
+"
+" Excel saves formulas always with A1 reference-style addresses (even if displayed/entered in R1C1 style).
 "
 "-------------------------------------------------------------------------------------------------------------------------
-" FROM / TO->  Boolean              Number                                     String
-"   v
-" Boolean      N/A                  0 if FALSE                                 Language-dependent.
-"                                   1 if TRUE                                  In English:
-"                                                                              "TRUE" if TRUE
-"                                                                              "FALSE" if FALSE
 "
-" Number       FALSE if 0           N/A                                        "-1" if -1
-"              TRUE if not 0                                                   Language-dependent for decimal separator.
-"                                                                              "." if English, "," if French, etc.
-"                                                                              With exponent "E" beyond 1E+20 or 1E-19
-"                                                                              "1E-19" if 1E-19
-"                                                                              "1E+20" if 1E+20
-"                                                                              Without exponent before 1E+20 or 1E-19
-"                                                                              "0.000000000000000001" if 1E-18
-"                                                                              "10000000000000000000" if 1E+19
-"
-" String       Language-dependent.  Language-dependent for decimal separator.  N/A
-"              In English:          "." if English, "," if French, etc.
-"              TRUE if "TRUE"       Accepted: "-1", "+1", ".5", "1E1", "-.5"
-"              FALSE if "FALSE"     "-1E-1", "1e1", "1e307", "1e05", "1e-309"
-"                                   Invalid: "", "E1", "1e308", "1e-310"
-"                                   #VALUE! if invalid decimal separator
-"                                   #VALUE! if invalid number
-"
-"-------------------------------------------------------------------------------------------------------------------------
 " #VALUE! in English, #VALEUR! in French
+"
 "-------------------------------------------------------------------------------------------------------------------------
 "
 " "'"&RIGHT(CELL("filename",A1),LEN(CELL("filename",A1))-FIND("]",CELL("filename",A1)))&" (2)'!$1:$1"
@@ -67,64 +44,6 @@ REPORT zzsro_excel_formula_engine.
 " ROW
 " T
 " VLOOKUP
-"
-"  formula with operation on arrays        result
-"
-"  -> if the left operand is one line high, the line is replicated till max lines of the right operand.
-"  -> if the left operand is one column wide, the column is replicated till max columns of the right operand.
-"  -> if the right operand is one line high, the line is replicated till max lines of the left operand.
-"  -> if the right operand is one column wide, the column is replicated till max columns of the left operand.
-"
-"  -> if the left operand has less lines than the right operand, additional lines are added with #N/A.
-"  -> if the left operand has less columns than the right operand, additional columns are added with #N/A.
-"  -> if the right operand has less lines than the left operand, additional lines are added with #N/A.
-"  -> if the right operand has less columns than the left operand, additional columns are added with #N/A.
-"
-"  -> target array size = max lines of both operands + max columns of both operands.
-"  -> each target cell of the target array is calculated like this:
-"     T(1,1) = L(1,1) op R(1,1)
-"     T(2,1) = L(2,1) op R(2,1)
-"     etc.
-"     If the left cell or right cell is #N/A, the target cell is also #N/A.
-"
-"  Examples where one of the two operands has 1 cell, 1 line or 1 column
-"
-"  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
-"
-"  a | b | c   op   k                      a op k | b op k | c op k
-"  d | e | f                               d op k | e op k | f op k
-"  g | h | i                               g op k | h op k | i op k
-"
-"  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
-"  d | e | f                               d op k | e op l | f op m | #N/A
-"  g | h | i                               g op k | h op l | i op m | #N/A
-"
-"  a | b | c   op   k                      a op k | b op k | c op k
-"  d | e | f        l                      d op l | e op l | f op l
-"  g | h | i        m                      g op m | h op m | i op m
-"                   n                      #N/A   | #N/A   | #N/A
-"
-"  a | b | c   op   k                      a op k | b op k | c op k
-"  d | e | f        l                      d op l | e op l | f op l
-"  g | h | i                               #N/A   | #N/A   | #N/A
-"
-"  a | b | c   op   k                      a op k | b op k | c op k
-"                   l                      a op l | b op l | c op l
-"                   m                      a op m | b op m | c op m
-"
-"  Both operands have more than 1 line and more than 1 column
-"
-"  a | b | c   op   k | n                  a op k | b op n | #N/A
-"  d | e | f        l | o                  d op l | e op o | #N/A
-"  g | h | i                               #N/A   | #N/A   | #N/A
-"
-"  a | b | c   op   k | n                  a op k | b op n | #N/A
-"  d | e | f        l | o                  d op l | e op o | #N/A
-"                   m | p                  #N/A   | #N/A   | #N/A
-"
-"  a | b       op   k | n | q              a op k | b op n | #N/A
-"  d | e            l | o | r              d op l | e op o | #N/A
-"  g | h                                   #N/A   | #N/A   | #N/A
 
 CLASS lcl_excelom_application DEFINITION DEFERRED.
 CLASS lcl_excelom_error_value DEFINITION DEFERRED.
@@ -137,8 +56,8 @@ CLASS lcl_excelom_exprh_parser DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_op_plus DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_range DEFINITION DEFERRED.
 CLASS lcl_excelom_expr_string DEFINITION DEFERRED.
-CLASS lcl_excelom_expr_sub_expr DEFINITION DEFERRED.
-CLASS lcl_excelom_expr_table DEFINITION DEFERRED.
+*CLASS lcl_excelom_expr_sub_expr DEFINITION DEFERRED.
+*CLASS lcl_excelom_expr_table DEFINITION DEFERRED.
 CLASS lcl_excelom_range DEFINITION DEFERRED.
 CLASS lcl_excelom_result_array DEFINITION DEFERRED.
 CLASS lcl_excelom_result_boolean DEFINITION DEFERRED.
@@ -230,6 +149,7 @@ ENDINTERFACE.
 
 INTERFACE lif_excelom_expr.
   TYPES ty_expression_type TYPE i.
+  TYPES tt_argument TYPE STANDARD TABLE OF REF TO lif_excelom_result WITH EMPTY KEY.
 
   CONSTANTS:
     BEGIN OF c_type,
@@ -254,13 +174,17 @@ INTERFACE lif_excelom_expr.
 
   DATA type TYPE ty_expression_type READ-ONLY.
 
+  METHODS create_single
+    IMPORTING arguments     TYPE tt_argument
+    RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+
   METHODS is_equal
-  IMPORTING expression TYPE REF TO lif_excelom_expr
-    RETURNING VALUE(result) type abap_bool.
+    IMPORTING expression    TYPE REF TO lif_excelom_expr
+    RETURNING VALUE(result) TYPE abap_bool.
 
   METHODS evaluate
-  importing context type ref to lcl_excelom_evaluation_context
-  RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
+    IMPORTING !context      TYPE REF TO lcl_excelom_evaluation_context
+    RETURNING VALUE(result) TYPE REF TO lif_excelom_result.
 ENDINTERFACE.
 
 
@@ -319,6 +243,8 @@ ENDINTERFACE.
 
 CLASS lcl_excelom DEFINITION.
   PUBLIC SECTION.
+    interfaces lif_excelom_all_friends.
+
     "! xlApplicationInternational
     TYPES ty_application_international TYPE i.
     "! xlCalculation
@@ -383,8 +309,8 @@ CLASS lcl_excelom DEFINITION.
       RETURNING VALUE(number) type ref to lcl_excelom_result_number.
 
     CLASS-METHODS convert_to_string
-      IMPORTING result type ref to lif_excelom_result
-      RETURNING VALUE(string) type ref to lcl_excelom_result_string.
+      IMPORTING input type ref to lif_excelom_result
+      RETURNING VALUE(result) type ref to lcl_excelom_result_string.
 
 ENDCLASS.
 
@@ -777,6 +703,7 @@ CLASS lcl_excelom_expr_func_cell DEFINITION FINAL
   CREATE PRIVATE.
 
   PUBLIC SECTION.
+    INTERFACES lif_excelom_all_friends.
     INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
@@ -869,11 +796,11 @@ CLASS lcl_excelom_expr_func_len DEFINITION FINAL
     INTERFACES lif_excelom_expr.
 
     CLASS-METHODS create
-      IMPORTING !text         TYPE REF TO lcl_excelom_expr_string
+      IMPORTING !text         TYPE REF TO lif_excelom_expr
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_func_len.
 
   PRIVATE SECTION.
-    DATA text TYPE REF TO lcl_excelom_expr_string.
+    DATA text TYPE REF TO lif_excelom_expr.
 ENDCLASS.
 
 
@@ -979,8 +906,27 @@ CLASS lcl_excelom_expr_op_plus DEFINITION FINAL
 ENDCLASS.
 
 
-CLASS lcl_excelom_expr_range DEFINITION FINAL
+CLASS lcl_excelom_expr_op_range_int DEFINITION FINAL
   CREATE PRIVATE.
+
+  PUBLIC SECTION.
+    INTERFACES lif_excelom_all_friends.
+    INTERFACES lif_excelom_expr.
+
+    CLASS-METHODS create
+      IMPORTING left_operand  TYPE REF TO lif_excelom_expr
+                right_operand TYPE REF TO lif_excelom_expr
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_op_range_int.
+
+  PRIVATE SECTION.
+    DATA left_operand  TYPE REF TO lif_excelom_expr.
+    DATA right_operand TYPE REF TO lif_excelom_expr.
+ENDCLASS.
+
+
+CLASS lcl_excelom_expr_range DEFINITION FINAL
+  CREATE PRIVATE
+  FRIENDS lif_excelom_all_friends.
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
@@ -997,7 +943,8 @@ ENDCLASS.
 
 
 CLASS lcl_excelom_expr_string DEFINITION FINAL
-  CREATE PRIVATE.
+  CREATE PRIVATE
+  FRIENDS lif_excelom_expr.
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_expr.
@@ -1007,32 +954,32 @@ CLASS lcl_excelom_expr_string DEFINITION FINAL
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_string.
 
   PRIVATE SECTION.
-    DATA text TYPE string.
+    DATA string TYPE string.
 ENDCLASS.
 
 
-CLASS lcl_excelom_expr_sub_expr DEFINITION FINAL
-  CREATE PRIVATE.
-
-  PUBLIC SECTION.
-    INTERFACES lif_excelom_expr.
-
-    CLASS-METHODS create
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_sub_expr.
-ENDCLASS.
-
-
-CLASS lcl_excelom_expr_table DEFINITION FINAL
-  CREATE PRIVATE.
-
-  PUBLIC SECTION.
-    INTERFACES lif_excelom_expr.
-
-    CLASS-METHODS create
-      IMPORTING table_name            TYPE csequence
-                row_column_specifiers TYPE string_table
-      RETURNING VALUE(result)         TYPE REF TO lcl_excelom_expr_table.
-ENDCLASS.
+*CLASS lcl_excelom_expr_sub_expr DEFINITION FINAL
+*  CREATE PRIVATE.
+*
+*  PUBLIC SECTION.
+*    INTERFACES lif_excelom_expr.
+*
+*    CLASS-METHODS create
+*      RETURNING VALUE(result) TYPE REF TO lcl_excelom_expr_sub_expr.
+*ENDCLASS.
+*
+*
+*CLASS lcl_excelom_expr_table DEFINITION FINAL
+*  CREATE PRIVATE.
+*
+*  PUBLIC SECTION.
+*    INTERFACES lif_excelom_expr.
+*
+*    CLASS-METHODS create
+*      IMPORTING table_name            TYPE csequence
+*                row_column_specifiers TYPE string_table
+*      RETURNING VALUE(result)         TYPE REF TO lcl_excelom_expr_table.
+*ENDCLASS.
 
 
 CLASS lcl_excelom_cell_format DEFINITION FINAL
@@ -1047,12 +994,15 @@ CLASS lcl_excelom_cell_format DEFINITION FINAL
 ENDCLASS.
 
 
-CLASS lcl_excelom_range DEFINITION FINAL
-  CREATE PRIVATE
+"! Is not final because it has subclass lcl_excelom_result_range.
+CLASS lcl_excelom_range DEFINITION
+  CREATE PROTECTED
+*  CREATE PRIVATE
   FRIENDS lif_excelom_all_friends.
 
   PUBLIC SECTION.
     INTERFACES lif_excelom_all_friends.
+    INTERFACES lif_excelom_RESULT.
 
     DATA formula2 TYPE string READ-ONLY.
     DATA parent TYPE REF TO lcl_excelom_worksheet READ-ONLY.
@@ -1078,12 +1028,17 @@ CLASS lcl_excelom_range DEFINITION FINAL
 
     METHODS calculate.
 
+    METHODS cells
+        IMPORTING row type i
+        column type i
+        returning value(result) TYPE REF TO lcl_excelom_range.
+
     "! Called by the Worksheet.Range property.
     "! @parameter cell1  | Required    Variant A String that is a range reference when one argument is used. Either a String that is a range reference or a Range object when two arguments are used.
     "! @parameter cell2  | Optional    Variant Either a String that is a range reference or a Range object. Cell2 defines another extremity of the range returned by the property.
     "! @parameter result | .
     CLASS-METHODS create
-      IMPORTING worksheet     TYPE REF TO lcl_excelom_worksheet
+      IMPORTING "worksheet     TYPE REF TO lcl_excelom_worksheet
                 cell1         TYPE REF TO lcl_excelom_range
                 cell2         TYPE REF TO lcl_excelom_range OPTIONAL
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
@@ -1091,6 +1046,12 @@ CLASS lcl_excelom_range DEFINITION FINAL
     CLASS-METHODS create_from_address_or_name
       IMPORTING address       TYPE clike
                 relative_to   TYPE REF TO lcl_excelom_worksheet
+      RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
+
+    CLASS-METHODS create_from_row_column
+      IMPORTING worksheet     TYPE REF TO lcl_excelom_worksheet
+                !row          TYPE i
+                !column       TYPE i
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_range.
 
     METHODS set_formula2
@@ -1137,6 +1098,11 @@ CLASS lcl_excelom_range DEFINITION FINAL
     METHODS _set_value
       IMPORTING
         value TYPE REF TO lif_excelom_result.
+
+*    METHODS format_number
+*      IMPORTING
+*        number TYPE f
+*        RETURNING VALUE(result) type string.
 
     DATA _formula_expression TYPE REF TO lif_excelom_expr.
     DATA _address            TYPE ty_address.
@@ -1331,17 +1297,19 @@ ENDCLASS.
 "! the CELL function which gives information about the cell.
 "! The RANGE class is for instance the result of the INDEX function, etc.
 CLASS lcl_excelom_result_range DEFINITION FINAL
-  CREATE PRIVATE.
-
-  PUBLIC SECTION.
-    INTERFACES lif_excelom_result.
-
-    CLASS-METHODS create
-      IMPORTING !range        TYPE REF TO lcl_excelom_range
-      RETURNING VALUE(result) TYPE REF TO lcl_excelom_result_range.
-
-  PRIVATE SECTION.
-    DATA range TYPE REF TO lcl_excelom_range.
+  INHERITING FROM lcl_excelom_range.
+*  CREATE PRIVATE.
+*
+*  PUBLIC SECTION.
+*    INTERFACES lif_excelom_all_friends.
+*    INTERFACES lif_excelom_result.
+*
+*    CLASS-METHODS create
+*      IMPORTING !range        TYPE REF TO lcl_excelom_range
+*      RETURNING VALUE(result) TYPE REF TO lcl_excelom_result_range.
+*
+*  PRIVATE SECTION.
+*    DATA range TYPE REF TO lcl_excelom_range.
 ENDCLASS.
 
 
@@ -1354,6 +1322,9 @@ CLASS lcl_excelom_result_string DEFINITION FINAL
     CLASS-METHODS create
       IMPORTING !string       TYPE csequence
       RETURNING VALUE(result) TYPE REF TO lcl_excelom_result_string.
+
+    METHODS get_string
+      RETURNING VALUE(result) TYPE string.
 
   PRIVATE SECTION.
     DATA string TYPE string.
@@ -1437,7 +1408,7 @@ CLASS lcl_excelom_worksheet DEFINITION FINAL
         END OF value2,
         format TYPE REF TO lcl_excelom_cell_format,
       END OF ts_cell.
-    TYPES tt_cell TYPE HASHED TABLE OF ts_cell WITH UNIQUE KEY column row.
+    TYPES tt_cell TYPE HASHED TABLE OF ts_cell WITH UNIQUE KEY row column.
 
     CONSTANTS:
       BEGIN OF c_value_type,
@@ -1636,55 +1607,120 @@ ENDCLASS.
 
 CLASS lcl_excelom_exprh IMPLEMENTATION.
   METHOD evaluate_array_operands_2.
+    "  formula with operation on arrays        result
+    "
+    "  -> if the left operand is one line high, the line is replicated till max lines of the right operand.
+    "  -> if the left operand is one column wide, the column is replicated till max columns of the right operand.
+    "  -> if the right operand is one line high, the line is replicated till max lines of the left operand.
+    "  -> if the right operand is one column wide, the column is replicated till max columns of the left operand.
+    "
+    "  -> if the left operand has less lines than the right operand, additional lines are added with #N/A.
+    "  -> if the left operand has less columns than the right operand, additional columns are added with #N/A.
+    "  -> if the right operand has less lines than the left operand, additional lines are added with #N/A.
+    "  -> if the right operand has less columns than the left operand, additional columns are added with #N/A.
+    "
+    "  -> target array size = max lines of both operands + max columns of both operands.
+    "  -> each target cell of the target array is calculated like this:
+    "     T(1,1) = L(1,1) op R(1,1)
+    "     T(2,1) = L(2,1) op R(2,1)
+    "     etc.
+    "     If the left cell or right cell is #N/A, the target cell is also #N/A.
+    "
+    "  Examples where one of the two operands has 1 cell, 1 line or 1 column
+    "
+    "  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
+    "
+    "  a | b | c   op   k                      a op k | b op k | c op k
+    "  d | e | f                               d op k | e op k | f op k
+    "  g | h | i                               g op k | h op k | i op k
+    "
+    "  a | b | c   op   k | l | m | n          a op k | b op l | c op m | #N/A
+    "  d | e | f                               d op k | e op l | f op m | #N/A
+    "  g | h | i                               g op k | h op l | i op m | #N/A
+    "
+    "  a | b | c   op   k                      a op k | b op k | c op k
+    "  d | e | f        l                      d op l | e op l | f op l
+    "  g | h | i        m                      g op m | h op m | i op m
+    "                   n                      #N/A   | #N/A   | #N/A
+    "
+    "  a | b | c   op   k                      a op k | b op k | c op k
+    "  d | e | f        l                      d op l | e op l | f op l
+    "  g | h | i                               #N/A   | #N/A   | #N/A
+    "
+    "  a | b | c   op   k                      a op k | b op k | c op k
+    "                   l                      a op l | b op l | c op l
+    "                   m                      a op m | b op m | c op m
+    "
+    "  Both operands have more than 1 line and more than 1 column
+    "
+    "  a | b | c   op   k | n                  a op k | b op n | #N/A
+    "  d | e | f        l | o                  d op l | e op o | #N/A
+    "  g | h | i                               #N/A   | #N/A   | #N/A
+    "
+    "  a | b | c   op   k | n                  a op k | b op n | #N/A
+    "  d | e | f        l | o                  d op l | e op o | #N/A
+    "                   m | p                  #N/A   | #N/A   | #N/A
+    "
+    "  a | b       op   k | n | q              a op k | b op n | #N/A
+    "  d | e            l | o | r              d op l | e op o | #N/A
+    "  g | h                                   #N/A   | #N/A   | #N/A
     TYPES tt_operand_result TYPE STANDARD TABLE OF REF TO lif_excelom_result WITH EMPTY KEY.
 
     DATA(operand_results) = VALUE tt_operand_result( ).
+    DATA(at_least_one_array_or_range) = abap_false.
     LOOP AT operands INTO DATA(operand).
-      INSERT OPERAND->evaluate( context )
-             INTO TABLE operand_results.
+      DATA(operand_result) = operand->evaluate( context ).
+      INSERT operand_result INTO TABLE operand_results.
+      IF    operand_result->row_count > 1
+         OR operand_result->row_count > 1.
+*      CASE operand_result->type.
+*        WHEN lif_excelom_result=>c_type-array
+*      OR lif_excelom_result=>c_type-array.
+        at_least_one_array_or_range = abap_true.
+*      ENDCASE.
+      ENDIF.
     ENDLOOP.
-    IF NOT line_exists( operand_results[ table_line->type = lif_excelom_result=>c_type-array ] ).
+
+    " Continue only if there's at least one array or one range with more than one cell.
+    IF at_least_one_array_or_range = abap_false.
       RETURN.
     ENDIF.
 
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+    DATA(max_row_count) = 0.
+    DATA(max_column_count) = 0.
+    LOOP AT operand_results INTO operand_result.
+      max_row_count = nmax( val1 = max_row_count
+                            val2 = operand_result->row_count ).
+      max_column_count = nmax( val1 = max_column_count
+                               val2 = operand_result->column_count ).
+    ENDLOOP.
 
-*    DATA(max_row_count) = 0.
-*    DATA(max_column_count) = 0.
-*    LOOP AT operand_results INTO DATA(operand_result).
-*      max_row_count = nmax( val1 = max_row_count
-*                            val2 = operand_result->row_count ).
-*      max_column_count = nmax( val1 = max_column_count
-*                               val2 = operand_result->column_count ).
-*    ENDLOOP.
-*
-*    DATA(target_array) = lcl_excelom_result_array=>create_initial( number_of_rows    = max_row_count
-*                                                                   number_of_columns = max_column_count ).
-*    DATA(row_offset) = 0.
-*    DATA(column_offset) = 0.
-*    DO max_row_count TIMES.
-*      DO max_column_count TIMES.
-*        LOOP AT operand_results into operand_result.
-*        DATA(left_operand_result_one_cell) = result-left_operand->get_cell_value( column_offset = column_offset
-*                                                                                  row_offset    = row_offset ).
-*        DATA(right_operand_result_one_cell) = result-right_operand->get_cell_value( column_offset = column_offset
-*                                                                                    row_offset    = row_offset ).
-*        ENDLOOP.
-*        DATA(target_array_result_one_cell) = COND #( WHEN expression IS BOUND
-*                                                     THEN expression->evaluate( context )
-*                                                     ELSE lcl_excelom_result_error=>na_not_applicable ).
-*
-*        target_array->lif_excelom_result~set_cell_value(
-*            row_offset    = row_offset
-*            column_offset = column_offset
-*            value         = target_array_result_one_cell ).
-*
-*        column_offset = column_offset + 1.
-*      ENDDO.
-*
-*      row_offset = row_offset + 1.
-*    ENDDO.
-*    result-result = target_array.
+    DATA(target_array) = lcl_excelom_result_array=>create_initial( number_of_rows    = max_row_count
+                                                                   number_of_columns = max_column_count ).
+    DATA(row_offset) = 0.
+    DATA(column_offset) = 0.
+    DO max_row_count TIMES.
+      DO max_column_count TIMES.
+        data(single_cell_operands) = VALUE tt_operand_result( ).
+        LOOP AT operand_results into operand_result.
+          INSERT operand_result->get_cell_value( column_offset = column_offset
+                                                 row_offset    = row_offset )
+                 INTO TABLE single_cell_operands.
+        ENDLOOP.
+        DATA(single_cell_result) = expression->create_single( arguments = single_cell_operands ).
+*        DATA(single_cell_expression) = expression->create_single( arguments = single_cell_operands ).
+*        DATA(single_cell_result) = single_cell_expression->evaluate( context ).
+        target_array->lif_excelom_result~set_cell_value(
+            row_offset    = row_offset
+            column_offset = column_offset
+            value         = single_cell_result ).
+
+        column_offset = column_offset + 1.
+      ENDDO.
+
+      row_offset = row_offset + 1.
+    ENDDO.
+    result-result = target_array.
   ENDMETHOD.
 
   METHOD evaluate_array_operands.
@@ -2034,6 +2070,9 @@ CLASS lcl_excelom_exprh_operator IMPLEMENTATION.
       WHEN '&'.
         result = lcl_excelom_expr_op_ampersand=>create( left_operand  = operands[ 1 ]
                                                         right_operand = operands[ 2 ] ).
+      WHEN ':'.
+        result = lcl_excelom_expr_op_range_int=>create( left_operand  = operands[ 1 ]
+                                                        right_operand = operands[ 2 ] ).
       WHEN OTHERS.
         RAISE EXCEPTION TYPE lcx_excelom_to_do.
     ENDCASE.
@@ -2279,6 +2318,10 @@ CLASS lcl_excelom_expr_array IMPLEMENTATION.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~is_equal.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
@@ -2293,6 +2336,10 @@ CLASS lcl_excelom_expr_boolean IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_boolean( ).
     result->boolean_value = boolean_value.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~evaluate.
@@ -2313,11 +2360,21 @@ CLASS lcl_excelom_expr_func_cell IMPLEMENTATION.
     result->address = address.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
-    TYPES ty_ref_to_result_range TYPE REF TO lcl_excelom_result_range.
-    DATA(result_range) = COND ty_ref_to_result_range( WHEN address IS BOUND
-                            THEN CAST lcl_excelom_result_range( address->lif_excelom_expr~evaluate( context ) )
-                            ELSE lcl_excelom_result_range=>create( context->containing_cell ) ).
+    " In cell B1, formula =CELL("address",A1:A6) is the same result as
+    " =CELL("address",A1), which is $A$1 in cell B1; the cells B2 to B6
+    " are not initialized with $A$2, $A$3, etc.
+    TYPES ty_ref_to_range TYPE REF TO lcl_excelom_range.
+
+    DATA(result_range) = COND ty_ref_to_range( WHEN address IS BOUND
+                            THEN CAST lcl_excelom_range( address->lif_excelom_expr~evaluate( context ) )
+                            ELSE lcl_excelom_result_range=>create( cell1 = context->containing_cell ) ).
+    DATA(result_top_left_cell) = result_range->cells( row    = 1
+                                                      column = 1 ).
     CASE info_type->lif_excelom_expr~evaluate( context )->get_string( ).
       WHEN c_info_type-filename.
         " Retourne par exemple "C:\temp\[Book1.xlsx]Sheet1"
@@ -2335,6 +2392,10 @@ ENDCLASS.
 
 CLASS lcl_excelom_expr_func_find IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
@@ -2360,6 +2421,10 @@ CLASS lcl_excelom_expr_func_if IMPLEMENTATION.
     result->condition     = condition.
     result->expr_if_true  = expr_if_true.
     result->expr_if_false = expr_if_false.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~is_equal.
@@ -2393,6 +2458,10 @@ CLASS lcl_excelom_expr_func_index IMPLEMENTATION.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
@@ -2410,9 +2479,24 @@ CLASS lcl_excelom_expr_func_len IMPLEMENTATION.
     result->text                  = text.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    result = lcl_excelom=>convert_to_string( arguments[ 1 ] )."name = 'text' ]-value ).
+*    result = create( text = arguments[ 1 ] ).
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
-    DATA(string) = text->lif_excelom_expr~evaluate( context )->get_string( ).
-    result = lcl_excelom_result_number=>create( strlen( string ) ).
+    DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands_2(
+                                 expression = me
+                                 context    = context
+                                 operands   = VALUE #( ( text ) ) ).
+    IF array_evaluation-result IS BOUND.
+      result = array_evaluation-result.
+    ELSE.
+*      result = create_single( arguments = VALUE #( name  = 'text'
+*                                                   value = text->evaluate( context ) ) )->get_string( ).
+**      DATA(string) = text->evaluate( context ).
+**      result = lcl_excelom_result_number=>create( strlen( string ) ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~is_equal.
@@ -2423,6 +2507,10 @@ ENDCLASS.
 
 CLASS lcl_excelom_expr_func_right IMPLEMENTATION.
   METHOD create.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
     RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
@@ -2443,6 +2531,14 @@ CLASS lcl_excelom_expr_number IMPLEMENTATION.
     result->lif_excelom_expr~type = lif_excelom_expr=>c_type-number.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~evaluate.
+    result = lcl_excelom_result_number=>create( number ).
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~is_equal.
     IF     expression->type = lif_excelom_expr=>c_type-number
        AND number           = CAST lcl_excelom_expr_number( expression )->number.
@@ -2450,10 +2546,6 @@ CLASS lcl_excelom_expr_number IMPLEMENTATION.
     ELSE.
       result = abap_false.
     ENDIF.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr~evaluate.
-    result = lcl_excelom_result_number=>create( number ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -2466,11 +2558,15 @@ CLASS lcl_excelom_expr_op_ampersand IMPLEMENTATION.
     result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation-ampersand.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
-    DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands( expression    = me
-                                                                         context       = context
-                                                                         left_operand  = left_operand
-                                                                         right_operand = right_operand ).
+    DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands_2(
+                                 expression = me
+                                 context    = context
+                                 operands   = VALUE #( ( left_operand ) ( right_operand ) ) ).
     IF array_evaluation-result IS BOUND.
       result = array_evaluation-result.
     ELSE.
@@ -2504,6 +2600,10 @@ CLASS lcl_excelom_expr_op_equal IMPLEMENTATION.
     result->left_operand  = left_operand.
     result->right_operand = right_operand.
     result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation-equal.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~evaluate.
@@ -2547,6 +2647,10 @@ CLASS lcl_excelom_expr_op_mult IMPLEMENTATION.
     result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation-mult.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
     DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands( expression    = me
                                                                          context       = context
@@ -2587,6 +2691,10 @@ CLASS lcl_excelom_expr_op_plus IMPLEMENTATION.
     result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation-plus.
   ENDMETHOD.
 
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
   METHOD lif_excelom_expr~evaluate.
     DATA(array_evaluation) = lcl_excelom_exprh=>evaluate_array_operands( expression    = me
                                                                          context       = context
@@ -2619,10 +2727,47 @@ CLASS lcl_excelom_expr_op_plus IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_excelom_expr_op_range_int IMPLEMENTATION.
+  METHOD create.
+    result = NEW lcl_excelom_expr_op_range_int( ).
+    result->left_operand  = left_operand.
+    result->right_operand = right_operand.
+    result->lif_excelom_expr~type = lif_excelom_expr=>c_type-operation-plus.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~evaluate.
+    DATA(cell1) = CAST lcl_excelom_expr_range( left_operand )->_address_or_name.
+    DATA(cell2) = CAST lcl_excelom_expr_range( right_operand )->_address_or_name.
+    result = lcl_excelom_result_range=>create( lcl_excelom_range=>create_from_address_or_name(
+                                                   address     = |{ cell1 }:{ cell2 }|
+                                                   relative_to = context->containing_cell->parent ) ).
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~is_equal.
+    IF     expression IS BOUND
+       AND expression->type = lif_excelom_expr=>c_type-operation-plus
+       AND left_operand->is_equal( CAST lcl_excelom_expr_op_range_int( expression )->left_operand )
+       AND right_operand->is_equal( CAST lcl_excelom_expr_op_range_int( expression )->right_operand ).
+      result = abap_true.
+    ELSE.
+      result = abap_false.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+
 CLASS lcl_excelom_expr_range IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_range( ).
     result->_address_or_name = address_or_name.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~evaluate.
@@ -2640,11 +2785,15 @@ ENDCLASS.
 CLASS lcl_excelom_expr_string IMPLEMENTATION.
   METHOD create.
     result = NEW lcl_excelom_expr_string( ).
-    result->text = text.
+    result->string = text.
+  ENDMETHOD.
+
+  METHOD lif_excelom_expr~create_single.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD lif_excelom_expr~evaluate.
-    result = lcl_excelom_result_string=>create( text ).
+    result = lcl_excelom_result_string=>create( string ).
   ENDMETHOD.
 
   METHOD lif_excelom_expr~is_equal.
@@ -2653,36 +2802,40 @@ CLASS lcl_excelom_expr_string IMPLEMENTATION.
 ENDCLASS.
 
 
-CLASS lcl_excelom_expr_sub_expr IMPLEMENTATION.
-  METHOD create.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr~evaluate.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr~is_equal.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-ENDCLASS.
-
-
-CLASS lcl_excelom_expr_table IMPLEMENTATION.
-  METHOD create.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr~evaluate.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_expr~is_equal.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-ENDCLASS.
-
-
+*CLASS lcl_excelom_expr_sub_expr IMPLEMENTATION.
+*  METHOD create.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr~evaluate.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr~is_equal.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*ENDCLASS.
+*
+*
+*CLASS lcl_excelom_expr_table IMPLEMENTATION.
+*  METHOD create.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr~create_single.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr~evaluate.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_expr~is_equal.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*ENDCLASS.
+*
+*
 *CLASS lcl_excelom_formula2 IMPLEMENTATION.
 *  METHOD calculate.
 *    _expression->evaluate( ).
@@ -2736,6 +2889,14 @@ CLASS lcl_excelom_range IMPLEMENTATION.
     _formula_expression->evaluate( context ).
   ENDMETHOD.
 
+  METHOD cells.
+    " This will change Z20:
+    " Range("Z20:AA25").Cells(1, 1) = "C"
+    result = lcl_excelom_range=>create_from_row_column( worksheet = parent
+                                                        row       = _address-top_left-row + row - 1
+                                                        column    = _address-top_left-column + column - 1 ).
+  ENDMETHOD.
+
   METHOD convert_column_a_xfd_to_number.
     DATA(offset) = 0.
     WHILE offset < strlen( roman_letters ).
@@ -2749,19 +2910,37 @@ CLASS lcl_excelom_range IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create.
-    IF cell2 IS INITIAL.
+    IF cell1 IS NOT BOUND.
+      RAISE EXCEPTION TYPE lcx_excelom_to_do.
+    ENDIF.
+    IF cell2 IS NOT BOUND.
       result = cell1.
     ELSE.
+      " This will set "g" from Z20 to AD24:
+      " Range(Range("Z20:AA21"), Range("AC23:AD24")).Value = "g"
+      " This will set "H" from Z20 to AD25:
+      " Range(Range("Z20:AA25"), Range("AC23:AD24")).Value = "H"
+      " This will set "H" from Z20 to AD25:
+      " Range(Range("AA25:Z20"), Range("AD24:AC23")).Value = "H"
       result = NEW lcl_excelom_range( ).
-      result->application = worksheet->application.
-      result->_address = VALUE #( top_left     = VALUE #( column = nmin( val1 = cell1->_address-bottom_right-column
-                                                                         val2 = cell2->_address-bottom_right-column )
-                                                          row    = nmin( val1 = cell1->_address-bottom_right-column
-                                                                         val2 = cell2->_address-bottom_right-column ) )
-                                  bottom_right = VALUE #( column = nmax( val1 = cell1->_address-bottom_right-column
-                                                                         val2 = cell2->_address-bottom_right-column )
-                                                          row    = nmax( val1 = cell1->_address-bottom_right-column
-                                                                         val2 = cell2->_address-bottom_right-column ) ) ).
+      result->application = cell1->parent->application.
+      result->parent      = cell1->parent.
+      result->_address = VALUE #( top_left     = VALUE #( column = nmin( val1 = nmin( val1 = cell1->_address-top_left-column
+                                                                                      val2 = cell2->_address-top_left-column )
+                                                                         val2 = nmin( val1 = cell1->_address-bottom_right-column
+                                                                                      val2 = cell2->_address-bottom_right-column ) )
+                                                          row    = nmin( val1 = nmin( val1 = cell1->_address-top_left-row
+                                                                                      val2 = cell2->_address-top_left-row )
+                                                                         val2 = nmin( val1 = cell1->_address-bottom_right-row
+                                                                                      val2 = cell2->_address-bottom_right-row ) ) )
+                                  bottom_right = VALUE #( column = nmax( val1 = nmax( val1 = cell1->_address-top_left-column
+                                                                                      val2 = cell2->_address-top_left-column )
+                                                                         val2 = nmax( val1 = cell1->_address-bottom_right-column
+                                                                                      val2 = cell2->_address-bottom_right-column ) )
+                                                          row    = nmax( val1 = nmax( val1 = cell1->_address-top_left-row
+                                                                                      val2 = cell2->_address-top_left-row )
+                                                                         val2 = nmax( val1 = cell1->_address-bottom_right-row
+                                                                                      val2 = cell2->_address-bottom_right-row ) ) ) ).
     ENDIF.
   ENDMETHOD.
 
@@ -2770,6 +2949,16 @@ CLASS lcl_excelom_range IMPLEMENTATION.
     result->parent  = relative_to.
     result->application = relative_to->application.
     result->_address = result->decode_range_address( address ).
+  ENDMETHOD.
+
+  METHOD create_from_row_column.
+    result = NEW lcl_excelom_range( ).
+    result->application = worksheet->application.
+    result->parent      = worksheet.
+    result->_address    = VALUE #( top_left     = VALUE #( column = column
+                                                           row    = row )
+                                   bottom_right = VALUE #( column = column
+                                                           row    = row ) ).
   ENDMETHOD.
 
   METHOD decode_range_address.
@@ -3032,7 +3221,7 @@ CLASS lcl_excelom_range IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD decode_range_address_r1_c1.
-
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 
   METHOD set_formula2.
@@ -3082,26 +3271,75 @@ CLASS lcl_excelom_range IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD value.
-    IF     _address-top_left-column = _address-bottom_right-column
-       AND _address-top_left-row    = _address-bottom_right-row.
-      DATA(cell) = REF #( parent->_cells[ row    = _address-top_left-row
-                                          column = _address-top_left-column ] OPTIONAL ).
-      IF cell IS NOT BOUND.
-        " TODO to be verified
-        result = lcl_excelom_result_empty=>get_singleton( ).
-      ELSE.
-        CASE cell->value_type.
-          WHEN parent->c_value_type-number.
-            result = lcl_excelom_result_number=>create( number = cell->value2-double ).
-          WHEN parent->c_value_type-string.
-            result = lcl_excelom_result_string=>create( string = cell->value2-string ).
-          WHEN OTHERS.
-            RAISE EXCEPTION TYPE lcx_excelom_to_do.
-        ENDCASE.
-      ENDIF.
-    ELSE.
-      result = lcl_excelom_result_array=>create_from_range( me ).
+    result = me.
+*    IF     _address-top_left-column = _address-bottom_right-column
+*       AND _address-top_left-row    = _address-bottom_right-row.
+*      DATA(cell) = REF #( parent->_cells[ row    = _address-top_left-row
+*                                          column = _address-top_left-column ] OPTIONAL ).
+*      IF cell IS NOT BOUND.
+*        RAISE EXCEPTION TYPE lcx_excelom_to_do.
+**        result = lcl_excelom_result_empty=>get_singleton( ).
+*      ELSE.
+*        CASE cell->value_type.
+*          WHEN parent->c_value_type-number.
+*            result = lcl_excelom_result_number=>create( number = cell->value2-double ).
+*          WHEN parent->c_value_type-string.
+*            result = lcl_excelom_result_string=>create( string = cell->value2-string ).
+*          WHEN OTHERS.
+*            RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*        ENDCASE.
+*      ENDIF.
+*    ELSE.
+*      result = lcl_excelom_result_array=>create_from_range( me ).
+*    ENDIF.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~get_cell_value.
+    DATA(cell) = cells( row    = row_offset + 1
+                        column = column_offset + 1 ).
+*    DATA(cell) = range->cells( row    = range->_address-top_left-row + row_offset
+*                               column = range->_address-top_left-column + column_offset ).
+    result = cell->value( ).
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~get_string.
+    IF _address-top_left <> _address-bottom_right.
+      RAISE EXCEPTION TYPE lcx_excelom_to_do.
     ENDIF.
+    DATA(cell) = REF #( parent->_cells[ row    = _address-top_left-row
+                                        column = _address-top_left-column ] OPTIONAL ).
+    IF cell IS NOT BOUND.
+      result = lcl_excelom=>convert_to_string( me )->get_string( )."value_type = cell->value_type
+                                               "value2     = cell->value2 ).
+    endif.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~get_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_array.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_boolean.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_error.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_number.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~is_string.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+  ENDMETHOD.
+
+  METHOD lif_excelom_result~set_cell_value.
+    RAISE EXCEPTION TYPE lcx_excelom_to_do.
   ENDMETHOD.
 ENDCLASS.
 
@@ -3439,47 +3677,53 @@ ENDCLASS.
 
 
 CLASS lcl_excelom_result_range IMPLEMENTATION.
-  METHOD create.
-    result = NEW lcl_excelom_result_range( ).
-    result->lif_excelom_result~type = lif_excelom_result=>c_type-range.
-    result->range = range.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~get_cell_value.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~get_string.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~get_value.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~is_array.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~is_boolean.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~is_error.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~is_number.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~is_string.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
-
-  METHOD lif_excelom_result~set_cell_value.
-    RAISE EXCEPTION TYPE lcx_excelom_to_do.
-  ENDMETHOD.
+*  METHOD create.
+*    result = NEW lcl_excelom_result_range( ).
+*    result->lif_excelom_result~type = lif_excelom_result=>c_type-range.
+*    result->lif_excelom_result~column_count = range->_address-bottom_right-column - range->_address-top_left-column + 1.
+*    result->lif_excelom_result~row_count = range->_address-bottom_right-row - range->_address-top_left-row + 1.
+*    result->range = range.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~get_cell_value.
+*    DATA(cell) = range->cells( row    = row_offset + 1
+*                               column = column_offset + 1 ).
+**    DATA(cell) = range->cells( row    = range->_address-top_left-row + row_offset
+**                               column = range->_address-top_left-column + column_offset ).
+*    result = cell->value( ).
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~get_string.
+*    range->value( ).
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~get_value.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~is_array.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~is_boolean.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~is_error.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~is_number.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~is_string.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
+*
+*  METHOD lif_excelom_result~set_cell_value.
+*    RAISE EXCEPTION TYPE lcx_excelom_to_do.
+*  ENDMETHOD.
 ENDCLASS.
 
 
@@ -3488,6 +3732,10 @@ CLASS lcl_excelom_result_string IMPLEMENTATION.
     result = NEW lcl_excelom_result_string( ).
     result->lif_excelom_result~type = lif_excelom_result=>c_type-string.
     result->string                  = string.
+  ENDMETHOD.
+
+  METHOD get_string.
+    result = string.
   ENDMETHOD.
 
   METHOD lif_excelom_result~get_cell_value.
@@ -3557,8 +3805,7 @@ CLASS lcl_excelom_worksheet IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD range_from_two_ranges.
-    result = lcl_excelom_range=>create( worksheet = me
-                                        cell1 = cell1
+    result = lcl_excelom_range=>create( cell1 = cell1
                                         cell2 = cell2 ).
   ENDMETHOD.
 ENDCLASS.
@@ -3658,7 +3905,55 @@ CLASS lcl_excelom IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD convert_to_string.
-
+" FROM / TO->  Boolean              Number                                     String
+"   v
+" Boolean      N/A                  0 if FALSE                                 Language-dependent.
+"                                   1 if TRUE                                  In English:
+"                                                                              "TRUE" if =""&TRUE
+"                                                                              "FALSE" if =""&FALSE
+"
+" Number       FALSE if 0           N/A                                        "-1" if =""&-1
+"              TRUE if not 0                                                   Language-dependent for decimal separator.
+"                                                                              "." if English, "," if French, etc.
+"                                                                              With exponent "E" if >= 1E+20 or < 1 with exponent + number of representative digits >= 20
+"                                                                              "1.11E-17"             if =""&1.11E-17 or =""&0.0000000000000000111
+"                                                                              "1.1E-18"              if =""&1.1E-18  or =""&0.0000000000000000011
+"                                                                              "9E-19"                if =""&9E-19    or =""&0.0000000000000000009
+"                                                                              "9.9E-19"              if =""&9.9E-19  or =""&0.00000000000000000099
+"                                                                              "1E+20"                if =""&1E20     or =""&10000000000000000000
+"                                                                              Without exponent if < 1E+20 or < 1 with exponent + number of representative digits < 20
+"                                                                              "0.000000000000000001" if =""&1E-18    or =""&0.000000000000000001
+"                                                                              "0.000000000000000002" if =""&2E-18    or =""&0.000000000000000002
+"                                                                              "10000000000000000000" if =""&1E19     or =""&10000000000000000000
+"
+" String       Language-dependent.  Language-dependent for decimal separator.  N/A
+"              In English:          "." if English, "," if French, etc.
+"              TRUE if "TRUE"       Accepted: "-1", "+1", ".5", "1E1", "-.5"
+"              FALSE if "FALSE"     "-1E-1", "1e1", "1e307", "1e05", "1e-309"
+"                                   Invalid: "", "E1", "1e308", "1e-310"
+"                                   #VALUE! if invalid decimal separator
+"                                   #VALUE! if invalid number
+    CASE input->type.
+      WHEN input->c_type-range.
+        DATA(range) = CAST lcl_excelom_range( input ).
+        IF range->_address-top_left <> range->_address-bottom_right.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ENDIF.
+        DATA(cell) = REF #( range->parent->_cells[ row    = range->_address-top_left-row
+                                                   column = range->_address-top_left-column ] OPTIONAL ).
+        IF cell IS NOT BOUND.
+          RAISE EXCEPTION TYPE lcx_excelom_to_do.
+        ELSE.
+          " TODO conversion from numbers are not respecting the rules above
+          DATA(string) = SWITCH #( cell->value_type
+                                   WHEN range->parent->c_value_type-number THEN |{ cell->value2-double }|
+                                   WHEN range->parent->c_value_type-string THEN cell->value2-string
+                                   ELSE                                         THROW lcx_excelom_to_do( ) ).
+        ENDIF.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE lcx_excelom_to_do.
+    ENDCASE.
+    result = lcl_excelom_result_string=>create( string ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -3704,6 +3999,7 @@ CLASS ltc_evaluate DEFINITION FINAL
     METHODS if                FOR TESTING RAISING cx_static_check.
     METHODS index             FOR TESTING RAISING cx_static_check.
     METHODS len               FOR TESTING RAISING cx_static_check.
+    METHODS len_a1_a2         FOR TESTING RAISING cx_static_check.
     METHODS right             FOR TESTING RAISING cx_static_check.
     METHODS one_plus_one      FOR TESTING RAISING cx_static_check.
     METHODS range_a1_plus_one FOR TESTING RAISING cx_static_check.
@@ -3805,7 +4101,7 @@ ENDCLASS.
 CLASS ltc_evaluate IMPLEMENTATION.
   METHOD ampersand.
     range_a1->set_formula2( value = `"hello "&"world"` ).
-    cl_abap_unit_assert=>assert_equals( act = range_a1->value( )->get_string( )
+    cl_abap_unit_assert=>assert_equals( act = lcl_excelom=>convert_to_string( range_a1 )->get_string( )
                                         exp = `hello world` ).
     range_a1->set_formula2( value = `"hello "&"new "&"world"` ).
     cl_abap_unit_assert=>assert_equals( act = range_a1->value( )->get_string( )
@@ -3848,23 +4144,30 @@ CLASS ltc_evaluate IMPLEMENTATION.
                                         exp = 4 ).
   ENDMETHOD.
 
+  METHOD len_a1_a2.
+    DATA(range_a2) = worksheet->range_from_address( 'A2' ).
+    DATA(range_b1) = worksheet->range_from_address( 'B1' ).
+    range_a1->set_value( lcl_excelom_result_string=>create( `Hello ` ) ).
+    range_a2->set_value( lcl_excelom_result_string=>create( `world` ) ).
+    range_b1->set_formula2( value = `LEN(A1:A2)` ).
+  ENDMETHOD.
+
   METHOD one_plus_one.
-    DATA(range) = worksheet->range_from_address( 'A1' ).
-    range->set_formula2( value = `1+1` ).
-    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range->value( ) )->number
+    range_a1->set_formula2( value = `1+1` ).
+    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range_a1->value( ) )->number
                                         exp = 2 ).
   ENDMETHOD.
 
   METHOD range_a1_plus_one.
-    worksheet->range_from_address( 'A1' )->set_value( lcl_excelom_result_number=>create( 10 ) ).
-    DATA(range) = worksheet->range_from_address( 'A2' ).
-    range->set_formula2( 'A1+1' ).
-    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range->value( ) )->number
+    range_a1->set_value( lcl_excelom_result_number=>create( 10 ) ).
+    DATA(range_a2) = worksheet->range_from_address( 'A2' ).
+    range_a2->set_formula2( 'A1+1' ).
+    cl_abap_unit_assert=>assert_equals( act = CAST lcl_excelom_result_number( range_a2->value( ) )->number
                                         exp = 11 ).
   ENDMETHOD.
 
   METHOD right.
-
+    cl_abap_unit_assert=>fail( msg = 'TODO' ).
   ENDMETHOD.
 
   METHOD setup.
