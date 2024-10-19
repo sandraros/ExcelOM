@@ -1,57 +1,44 @@
-class ZCL_XLOM__VA_STRING definition
-  public
-  final
-  create private
+CLASS zcl_xlom__va_string DEFINITION
+  PUBLIC FINAL
+  CREATE PRIVATE
   GLOBAL FRIENDS zif_xlom__ut_all_friends.
 
-public section.
+  PUBLIC SECTION.
+    INTERFACES zif_xlom__va.
 
-  interfaces ZIF_XLOM__VA .
+    CLASS-METHODS create
+      IMPORTING !string       TYPE csequence
+      RETURNING VALUE(result) TYPE REF TO zcl_xlom__va_string.
 
-  class-methods CREATE
-    importing
-      !STRING type CSEQUENCE
-    returning
-      value(RESULT) type ref to ZCL_XLOM__VA_STRING .
-  class-methods GET
-    importing
-      !STRING type CSEQUENCE
-    returning
-      value(RESULT) type ref to ZCL_XLOM__VA_STRING .
-  methods GET_STRING
-    returning
-      value(RESULT) type STRING .
-protected section.
-private section.
+    CLASS-METHODS get
+      IMPORTING !string       TYPE csequence
+      RETURNING VALUE(result) TYPE REF TO zcl_xlom__va_string.
 
-  types:
-    BEGIN OF ts_buffer_line,
+    METHODS get_string
+      RETURNING VALUE(result) TYPE string.
+
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ts_buffer_line,
         string TYPE string,
         object TYPE REF TO zcl_xlom__va_string,
-      END OF ts_buffer_line .
-  types:
-    tt_buffer TYPE HASHED TABLE OF ts_buffer_line WITH UNIQUE KEY string .
+      END OF ts_buffer_line.
+    TYPES tt_buffer TYPE HASHED TABLE OF ts_buffer_line WITH UNIQUE KEY string.
 
-  class-data BUFFER type TT_BUFFER .
-  data STRING type STRING .
+    CLASS-DATA buffer TYPE tt_buffer.
+
+    DATA string TYPE string.
 ENDCLASS.
 
 
+CLASS zcl_xlom__va_string IMPLEMENTATION.
+  METHOD create.
+    result = NEW zcl_xlom__va_string( ).
+    result->zif_xlom__va~type = zif_xlom__va=>c_type-string.
+    result->string            = string.
+  ENDMETHOD.
 
-CLASS ZCL_XLOM__VA_STRING IMPLEMENTATION.
-
-
-  method CREATE.
-
-    result = NEW ZCL_xlom__va_string( ).
-    result->ZIF_xlom__va~type = ZIF_xlom__va=>c_type-string.
-    result->string                  = string.
-
-  endmethod.
-
-
-  method GET.
-
+  METHOD get.
     DATA(buffer_line) = REF #( buffer[ string = string ] OPTIONAL ).
     IF buffer_line IS NOT BOUND.
       INSERT VALUE #( string = string
@@ -60,62 +47,37 @@ CLASS ZCL_XLOM__VA_STRING IMPLEMENTATION.
              REFERENCE INTO buffer_line.
     ENDIF.
     result = buffer_line->object.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method GET_STRING.
-
+  METHOD get_string.
     result = string.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~GET_VALUE.
-
+  METHOD zif_xlom__va~get_value.
     result = REF #( string ).
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_ARRAY.
-
+  METHOD zif_xlom__va~is_array.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_BOOLEAN.
-
+  METHOD zif_xlom__va~is_boolean.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
+  METHOD zif_xlom__va~is_equal.
+    result = xsdbool( string = CAST zcl_xlom__va_string( input_result )->get_string( ) ).
+  ENDMETHOD.
 
-
-  method ZIF_XLOM__VA~IS_EQUAL.
-
-    result = xsdbool( string = CAST ZCL_xlom__va_string( input_result )->get_string( ) ).
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_ERROR.
-
+  METHOD zif_xlom__va~is_error.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_NUMBER.
-
+  METHOD zif_xlom__va~is_number.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_STRING.
-
+  METHOD zif_xlom__va~is_string.
     result = abap_true.
-
-  endmethod.
+  ENDMETHOD.
 ENDCLASS.

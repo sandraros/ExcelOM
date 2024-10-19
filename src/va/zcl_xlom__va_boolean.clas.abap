@@ -1,112 +1,76 @@
-class ZCL_XLOM__VA_BOOLEAN definition
-  public
-  final
-  create private
+CLASS zcl_xlom__va_boolean DEFINITION
+  PUBLIC FINAL
+  CREATE PRIVATE
   GLOBAL FRIENDS zif_xlom__ut_all_friends.
 
-public section.
+  PUBLIC SECTION.
+    INTERFACES zif_xlom__va.
 
-  interfaces ZIF_XLOM__VA .
+    CLASS-DATA false TYPE REF TO zcl_xlom__va_boolean READ-ONLY.
+    CLASS-DATA true  TYPE REF TO zcl_xlom__va_boolean READ-ONLY.
 
-  class-data FALSE type ref to ZCL_XLOM__VA_BOOLEAN read-only .
-  class-data TRUE type ref to ZCL_XLOM__VA_BOOLEAN read-only .
-  data BOOLEAN_VALUE type ABAP_BOOL read-only .
+    DATA boolean_value TYPE abap_bool READ-ONLY.
 
-  class-methods CLASS_CONSTRUCTOR .
-  class-methods GET
-    importing
-      !BOOLEAN_VALUE type ABAP_BOOL
-    returning
-      value(RESULT) type ref to ZCL_XLOM__VA_BOOLEAN .
-protected section.
-private section.
+    CLASS-METHODS class_constructor.
 
-  data NUMBER type F .
+    CLASS-METHODS get
+      IMPORTING boolean_value TYPE abap_bool
+      RETURNING VALUE(result) TYPE REF TO zcl_xlom__va_boolean.
 
-  class-methods CREATE
-    importing
-      !BOOLEAN_VALUE type ABAP_BOOL
-    returning
-      value(RESULT) type ref to ZCL_XLOM__VA_BOOLEAN .
+  PRIVATE SECTION.
+    DATA number TYPE f.
+
+    CLASS-METHODS create
+      IMPORTING boolean_value TYPE abap_bool
+      RETURNING VALUE(result) TYPE REF TO zcl_xlom__va_boolean.
 ENDCLASS.
 
 
-
-CLASS ZCL_XLOM__VA_BOOLEAN IMPLEMENTATION.
-
-
-  method CLASS_CONSTRUCTOR.
-
+CLASS zcl_xlom__va_boolean IMPLEMENTATION.
+  METHOD class_constructor.
     false = create( abap_false ).
     true  = create( abap_true ).
+  ENDMETHOD.
 
-  endmethod.
+  METHOD create.
+    result = NEW zcl_xlom__va_boolean( ).
+    result->zif_xlom__va~type = zif_xlom__va=>c_type-boolean.
+    result->boolean_value     = boolean_value.
+    result->number            = COND #( WHEN boolean_value = abap_true THEN -1 ).
+  ENDMETHOD.
 
+  METHOD get.
+    result = SWITCH #( boolean_value
+                       WHEN abap_true
+                       THEN true
+                       ELSE false ).
+  ENDMETHOD.
 
-  method CREATE.
-
-    result = NEW ZCL_xlom__va_boolean( ).
-    result->ZIF_xlom__va~type = ZIF_xlom__va=>c_type-boolean.
-    result->boolean_value = boolean_value.
-    result->number = COND #( when boolean_value = abap_true then -1 ).
-
-  endmethod.
-
-
-  method GET.
-
-    result = SWITCH #( boolean_value WHEN abap_true
-                                     THEN true
-                                     ELSE false ).
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~GET_VALUE.
-
+  METHOD zif_xlom__va~get_value.
     result = REF #( boolean_value ).
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_ARRAY.
-
+  METHOD zif_xlom__va~is_array.
     result = abap_true.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_BOOLEAN.
-
+  METHOD zif_xlom__va~is_boolean.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
+  METHOD zif_xlom__va~is_equal.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
-
-  method ZIF_XLOM__VA~IS_EQUAL.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_ERROR.
-
+  METHOD zif_xlom__va~is_error.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_NUMBER.
-
+  METHOD zif_xlom__va~is_number.
     result = abap_false.
+  ENDMETHOD.
 
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_STRING.
-
+  METHOD zif_xlom__va~is_string.
     result = abap_false.
-
-  endmethod.
+  ENDMETHOD.
 ENDCLASS.

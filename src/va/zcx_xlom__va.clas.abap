@@ -1,28 +1,24 @@
-class ZCX_XLOM__VA definition
-  public
-  inheriting from CX_STATIC_CHECK
-  create public .
+CLASS zcx_xlom__va DEFINITION
+  PUBLIC
+  INHERITING FROM cx_static_check
+  CREATE PUBLIC.
 
-public section.
+  PUBLIC SECTION.
+    DATA result_error TYPE REF TO zcl_xlom__va_error READ-ONLY.
 
-  data RESULT_ERROR type ref to ZCL_XLOM__VA_ERROR read-only .
+    METHODS constructor
+      IMPORTING result_error TYPE REF TO zcl_xlom__va_error.
 
-  methods CONSTRUCTOR
-    importing
-      !RESULT_ERROR type ref to ZCL_XLOM__VA_ERROR .
-protected section.
-private section.
+  PROTECTED SECTION.
+
+  PRIVATE SECTION.
 ENDCLASS.
 
 
-
-CLASS ZCX_XLOM__VA IMPLEMENTATION.
-
-
-  method CONSTRUCTOR.
-
-    super->constructor( textid = textid previous = previous ).
+CLASS zcx_xlom__va IMPLEMENTATION.
+  METHOD constructor ##ADT_SUPPRESS_GENERATION.
+    super->constructor( textid   = textid
+                        previous = previous ).
     me->result_error = result_error.
-
-  endmethod.
+  ENDMETHOD.
 ENDCLASS.

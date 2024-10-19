@@ -1,82 +1,52 @@
-class ZCL_XLOM__VA_EMPTY definition
-  public
-  final
-  create private .
+CLASS zcl_xlom__va_empty DEFINITION
+  PUBLIC FINAL
+  CREATE PRIVATE.
 
-public section.
+  PUBLIC SECTION.
+    INTERFACES zif_xlom__va.
 
-  interfaces ZIF_XLOM__VA .
+    CLASS-METHODS get_singleton
+      RETURNING VALUE(result) TYPE REF TO zcl_xlom__va_empty.
 
-  class-methods GET_SINGLETON
-    returning
-      value(RESULT) type ref to ZCL_XLOM__VA_EMPTY .
-protected section.
-private section.
-
-  class-data SINGLETON type ref to ZCL_XLOM__VA_EMPTY .
+  PRIVATE SECTION.
+    CLASS-DATA singleton TYPE REF TO zcl_xlom__va_empty.
 ENDCLASS.
 
 
-
-CLASS ZCL_XLOM__VA_EMPTY IMPLEMENTATION.
-
-
-  method GET_SINGLETON.
-
+CLASS zcl_xlom__va_empty IMPLEMENTATION.
+  METHOD get_singleton.
     IF singleton IS NOT BOUND.
-      singleton = NEW ZCL_xlom__va_empty( ).
-      singleton->ZIF_xlom__va~type = ZIF_xlom__va=>c_type-empty.
+      singleton = NEW zcl_xlom__va_empty( ).
+      singleton->zif_xlom__va~type = zif_xlom__va=>c_type-empty.
     ENDIF.
     result = singleton.
+  ENDMETHOD.
 
-  endmethod.
+  METHOD zif_xlom__va~get_value.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
+  METHOD zif_xlom__va~is_array.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
-  method ZIF_XLOM__VA~GET_VALUE.
+  METHOD zif_xlom__va~is_boolean.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
+  METHOD zif_xlom__va~is_equal.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
-  endmethod.
+  METHOD zif_xlom__va~is_error.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
+  METHOD zif_xlom__va~is_number.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 
-  method ZIF_XLOM__VA~IS_ARRAY.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_BOOLEAN.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_EQUAL.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_ERROR.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_NUMBER.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
-
-
-  method ZIF_XLOM__VA~IS_STRING.
-
-    RAISE EXCEPTION TYPE ZCX_xlom_todo.
-
-  endmethod.
+  METHOD zif_xlom__va~is_string.
+    RAISE EXCEPTION TYPE zcx_xlom_todo.
+  ENDMETHOD.
 ENDCLASS.
